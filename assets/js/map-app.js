@@ -17,12 +17,13 @@
   const EXAG = 1.5, SKIRT = 80, BOUNDS = [79.4, 5.75, 82.1, 10];
   const IMAGERY = { 'raster-saturation': 0.28, 'raster-contrast': 0.16, 'raster-brightness-max': 1 };
   const TRIP_KEY = 'ceylonways-map-trip-v1';
-  const TYPES = { culture: 'Culture and heritage', hiking: 'Hiking and viewpoints', nature: 'Nature', wildlife: 'Wildlife', beach: 'Beaches', food: 'Food and local' };
+  const TYPES = { culture: 'Culture and heritage', hiking: 'Hiking and viewpoints', nature: 'Nature', wildlife: 'Wildlife', beach: 'Beaches', food: 'Food and local', sight: 'Local sights', stay: 'Hotels' };
   const CLIMATES = { 'cool-highlands': 'Cool highlands', 'warm-coast': 'Warm coast', 'wet-zone': 'Wet zone nature', 'dry-zone': 'Dry zone landscapes' };
   const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
   const PACE = { relaxed: 5, balanced: 7, active: 9 };
 
-  let meta = [], districtsGeo = null, places = [], hubs = [], zone = null, routes = null;
+  let meta = [], districtsGeo = null, places = [], hubs = [], zone = null, routes = null, listed = [], listedReady = null;
+  const listedIdx = {};
   let island = null, district = null, simple = null;
   const S = { open: false, mode: 'explore', slug: null, place: null, preview: null, view: 'districts', sheet: 'half', filters: { types: [], climate: [], month: '' }, query: '', lifted: false, busy: false, routeOn: false };
   const trip = Object.assign({ stops: [], districts: [], start: 'airport', days: 7, vehicle: 'car', pace: 'balanced', loop: true, manual: false }, read(TRIP_KEY) || {});
@@ -30,7 +31,20 @@
 
   function read(k) { try { return JSON.parse(localStorage.getItem(k)); } catch (e) { return null; } }
   function saveTrip() { try { localStorage.setItem(TRIP_KEY, JSON.stringify(trip)); } catch (e) { /* private mode */ } }
-  const byId = id => places.find(p => p.id === id) || hubs.find(h => h.id === id);
+  const byId = id => listedIdx[id] || places.find(p => p.id === id) || hubs.find(h => h.id === id);
+  const stayOn = () => S.hotels || S.filters.types.includes('stay');
+  const everything = () => places.concat(listed.filter(l => l.types[0] !== 'stay' || stayOn()));
+  function needListings() {
+    if (listedReady) return listedReady;
+    listedReady = fetch(asset('assets/map/listings.json')).then(r => { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); }).then(rows => {
+      listed = rows.map(l => ({ id: l.id, name: l.n, district: l.d, types: [l.t], cat: l.c, lat: l.a, lon: l.o, src: l.s, star: l.star, region: l.region, climate: l.cl, listed: true, visit: 'Time not confirmed', road: l.r ? { anchor: l.r, km: l.k, min: l.m, g: l.g } : null }));
+      listed.forEach(l => { listedIdx[l.id] = l; });
+      counts();
+      if (S.lifted && !simple) drawMarkers();
+      if (['districts', 'district', 'filters', 'trip'].includes(S.view) && S.open && (!document.activeElement || document.activeElement.id !== 'm-search')) { const hold = $('m-body').scrollTop; setView(S.view); $('m-body').scrollTop = hold; }
+    }).catch(e => { listedReady = null; console.warn(e); });
+    return listedReady;
+  }
   const dMeta = slug => meta.find(m => m.slug === slug);
   const inDistrict = (p, slug) => p.district === slug || (p.also || []).includes(slug);
 
@@ -176,7 +190,7 @@
         if (f) pickDistrict(f.properties.slug, e.point);
       });
       addEventListener('resize', () => { if (!island) return; island.resize(); district.resize(); if (!S.lifted && !S.routeOn) island.jumpTo(islandCam()); });
-      window.__map = { island, district, S, trip };
+      window.__map = { island, district, S, trip, listedCount: () => listed.length, anyListedName: () => listed.find(l => l.types[0] !== 'stay' && /^[A-Za-z ]+$/.test(l.name)).name, nameOf: id => byId(id).name };
     });
   }
 
@@ -252,7 +266,7 @@
     drawMarkers();
     if (placeId) openPlace(placeId); else setView('district');
     syncUrl(); syncLoc();
-    const n = places.filter(p => inDistrict(p, S.slug)).length;
+    const n = everything().filter(p => inDistrict(p, S.slug)).length;
     announce(`${dMeta(S.slug).name} selected. ${n} places.`);
   }
   async function unlift(keepBusy) {
@@ -273,7 +287,7 @@
 
   function expand(view) {
     if (S.open) return;
-    S.open = true; scrollTo(0, 0);
+    S.open = true; scrollTo(0, 0); needListings();
     document.body.classList.add('map-open'); stage.classList.remove('is-compact'); stage.classList.add('is-open');
     if (island) { setCompactGestures(false); stopDrift(); const c = islandCam(); reduce ? island.jumpTo(c) : island.easeTo(Object.assign({}, c, { duration: 900 })); }
     if (isPhone()) S.sheet = 'peek';
@@ -304,9 +318,9 @@
   function clearMarkers() { markers.forEach(m => m.remove()); markers = []; if (district) district.off('moveend', drawMarkers); }
   const matches = p => {
     const f = S.filters;
-    if (f.types.length && !p.types.some(t => f.types.includes(t))) return false;
+    if (f.types.length && !p.types.some(t => f.types.includes(t)) && !(S.hotels && p.types[0] === 'stay')) return false;
     if (f.climate.length && !f.climate.includes(p.climate)) return false;
-    if (f.month !== '' && CW.seasons[p.region][Number(f.month)] === 'wet') return false;
+    if (f.month !== '' && p.region && CW.seasons[p.region][Number(f.month)] === 'wet') return false;
     return true;
   };
   function drawMarkers() {
@@ -317,6 +331,7 @@
     const pts = list.map(p => ({ p, xy: district.project([p.lon, p.lat]) }));
     const groups = [];
     pts.forEach(o => { const g = groups.find(g => Math.hypot(g[0].xy.x - o.xy.x, g[0].xy.y - o.xy.y) < 48); g ? g.push(o) : groups.push([o]); });
+    drawListed();
     groups.forEach(g => {
       const el = document.createElement('button'); el.type = 'button';
       if (g.length > 1) {
@@ -330,6 +345,33 @@
       }
       const lng = [g[0].p.lon, g[0].p.lat];
       markers.push(new maplibregl.Marker({ element: el, anchor: 'center' }).setLngLat(lng).addTo(district));
+    });
+  }
+
+  /* Listed places: small dots that group until you zoom in */
+  function drawListed() {
+    const box = district.getCanvas().getBoundingClientRect(), z = district.getZoom(), groups = [];
+    listed.filter(l => l.district === S.slug && (l.types[0] !== 'stay' || stayOn()) && matches(l)).forEach(l => {
+      const xy = district.project([l.lon, l.lat]);
+      if (xy.x < -40 || xy.y < -40 || xy.x > box.width + 40 || xy.y > box.height + 40) return;
+      const g = groups.find(g => Math.hypot(g[0].xy.x - xy.x, g[0].xy.y - xy.y) < 40);
+      g ? g.push({ p: l, xy }) : groups.push([{ p: l, xy }]);
+    });
+    groups.forEach(g => {
+      const el = document.createElement('button'); el.type = 'button';
+      if (g.length > 1) {
+        el.className = 'm-group'; el.textContent = g.length; el.setAttribute('aria-label', `${g.length} listed places`);
+        el.onclick = () => {
+          if (district.getZoom() >= 12.6) { S.cluster = g.map(o => o.p.id); return setView('cluster'); }
+          const b = new maplibregl.LngLatBounds(); g.forEach(o => b.extend([o.p.lon, o.p.lat]));
+          district.fitBounds(b, { padding: isPhone() ? { top: 90, bottom: 340, left: 50, right: 50 } : { top: 120, bottom: 120, left: 120, right: 520 }, maxZoom: 13, pitch: 50, bearing: district.getBearing(), duration: reduce ? 0 : 700 });
+        };
+      } else {
+        const p = g[0].p; el.className = `m-dot m-t-${p.types[0]}${S.place === p.id ? ' is-on' : ''}${z >= 11.2 ? ' has-name' : ''}`;
+        el.innerHTML = `<i aria-hidden="true"></i><span>${esc(p.name)}</span>`; el.setAttribute('aria-label', `${p.name}. ${p.cat}. Listed place`);
+        el.onclick = () => openPlace(p.id);
+      }
+      markers.push(new maplibregl.Marker({ element: el, anchor: 'center' }).setLngLat([g[0].p.lon, g[0].p.lat]).addTo(district));
     });
   }
 
@@ -377,7 +419,7 @@
     const t = $('m-tcount'); if (t) t.textContent = trip.stops.length;
     const n = S.filters.types.length + S.filters.climate.length + (S.filters.month !== '' ? 1 : 0);
     const f = $('m-fcount'); if (f) f.textContent = n ? ` (${n})` : '';
-    if (island) meta.forEach(m => island.setFeatureState({ source: 'districts', id: m.slug }, { picked: trip.districts.includes(m.slug), dim: n > 0 && !places.some(p => inDistrict(p, m.slug) && matches(p)) }));
+    if (island) meta.forEach(m => island.setFeatureState({ source: 'districts', id: m.slug }, { picked: trip.districts.includes(m.slug), dim: n > 0 && !everything().some(p => inDistrict(p, m.slug) && matches(p)) }));
   }
   function setMode(m) {
     S.mode = m; $('m-explore-mode').setAttribute('aria-pressed', m === 'explore'); $('m-plan-mode').setAttribute('aria-pressed', m === 'plan');
@@ -392,7 +434,7 @@
     paintSheet();
     document.querySelectorAll('.m-bar [data-view]').forEach(b => b.setAttribute('aria-current', b.dataset.view === v ? 'true' : 'false'));
     const body = $('m-body');
-    body.innerHTML = ({ districts: viewDistricts, preview: viewPreview, district: viewDistrict, place: viewPlace, filters: viewFilters, trip: viewTrip, location: viewLocation })[v]();
+    body.innerHTML = ({ districts: viewDistricts, preview: viewPreview, district: viewDistrict, place: viewPlace, filters: viewFilters, trip: viewTrip, location: viewLocation, cluster: viewCluster })[v]();
     body.scrollTop = 0;
   }
 
@@ -400,12 +442,12 @@
   function viewDistricts() {
     const q = S.query.trim().toLowerCase();
     const ds = meta.filter(m => !q || m.name.toLowerCase().includes(q));
-    const ps = q.length > 1 ? places.filter(p => p.name.toLowerCase().includes(q)) : [];
+    const ps = q.length > 1 ? places.concat(listed).filter(p => p.name.toLowerCase().includes(q)).slice(0, 30) : [];
     const anyF = S.filters.types.length || S.filters.climate.length || S.filters.month !== '';
     return `<h2>Choose a district</h2>
       <label class="m-field"><span class="visually-hidden">Search districts and places</span><input id="m-search" type="search" placeholder="Search districts and places" value="${esc(S.query)}" autocomplete="off"></label>
       ${ps.length ? `<ul class="m-list">${ps.map(p => `<li><button type="button" class="m-row" data-place="${p.id}" data-district="${p.district}"><strong>${esc(p.name)}</strong><span>In ${esc(dMeta(p.district).name)} District</span></button></li>`).join('')}</ul>` : ''}
-      <ul class="m-list">${ds.map(m => { const all = places.filter(p => inDistrict(p, m.slug)); const hit = all.filter(matches).length; return `<li><button type="button" class="m-row" data-district="${m.slug}"><strong>${esc(m.name)}</strong><span>${all.length ? (anyF ? `${hit} of ${all.length} places match` : `${all.length} place${all.length > 1 ? 's' : ''}`) : 'Places coming soon'}</span></button></li>`; }).join('')}</ul>
+      <ul class="m-list">${ds.map(m => { const all = everything().filter(p => inDistrict(p, m.slug)); const hit = all.filter(matches).length; return `<li><button type="button" class="m-row" data-district="${m.slug}"><strong>${esc(m.name)}</strong><span>${all.length ? (anyF ? `${hit} of ${all.length} places match` : `${all.length} place${all.length > 1 ? 's' : ''}`) : 'Places coming soon'}</span></button></li>`; }).join('')}</ul>
       ${!ds.length && !ps.length ? '<p class="m-note">No district or place has that name.</p>' : ''}`;
   }
   function viewPreview() {
@@ -416,17 +458,48 @@
     const m = dMeta(S.slug), all = places.filter(p => p.district === S.slug), shared = places.filter(p => p.district !== S.slug && inDistrict(p, S.slug));
     const near = !all.length ? meta.slice().sort((a, b) => dist(a.center, m.center) - dist(b.center, m.center)).filter(x => x.slug !== m.slug && places.some(p => inDistrict(p, x.slug))).slice(0, 3) : [];
     const groups = Object.keys(TYPES).map(t => [t, all.filter(p => p.types[0] === t)]).filter(g => g[1].length);
+    const mine = listed.filter(l => l.district === S.slug), more = mine.filter(l => l.types[0] !== 'stay'), hotels = mine.filter(l => l.types[0] === 'stay');
+    const cats = [...new Set(more.map(l => l.cat))].sort().map(c => [c, more.filter(l => l.cat === c)]);
     return `<p class="eyebrow">District</p><h2>${esc(m.name)}</h2><p><a class="m-link" href="${asset('districts/' + m.slug + '.html')}">Read the ${esc(m.name)} guide</a></p>
-      ${all.length ? groups.map(([t, l]) => `<h3>${esc(TYPES[t])}</h3><ul class="m-list">${l.map(placeRow).join('')}</ul>`).join('') : `<p class="m-note">We're still adding places in ${esc(m.name)}.</p><h3>Nearby districts</h3><ul class="m-list">${near.map(x => `<li><button type="button" class="m-row" data-district="${x.slug}"><strong>${esc(x.name)}</strong></button></li>`).join('')}</ul>`}
+      ${all.length ? groups.map(([t, l]) => `<h3>${esc(TYPES[t])}</h3><ul class="m-list">${l.map(placeRow).join('')}</ul>`).join('') : more.length ? `<p class="m-note">We haven't written full guides for ${esc(m.name)} yet.</p>` : `<p class="m-note">We're still adding places in ${esc(m.name)}.</p><h3>Nearby districts</h3><ul class="m-list">${near.map(x => `<li><button type="button" class="m-row" data-district="${x.slug}"><strong>${esc(x.name)}</strong></button></li>`).join('')}</ul>`}
+      ${more.length ? `<h3>More places to explore</h3><p class="m-note">Listed places, not yet checked by us. Zoom in to see them all.</p>${cats.map(([c, l]) => `<details class="m-more"><summary>${esc(c)} (${l.length})</summary><ul class="m-list">${l.map(listedRow).join('')}</ul></details>`).join('')}` : ''}
+      ${hotels.length ? `<h3>Hotels</h3><button type="button" class="button button-ghost button-sm" data-hotels="1">${S.hotels ? 'Hide hotels on the map' : `Show ${hotels.length} hotels on the map`}</button><details class="m-more"><summary>All hotels (${hotels.length})</summary><ul class="m-list">${hotels.map(listedRow).join('')}</ul></details>` : ''}
       ${shared.length ? `<h3>Shared with nearby districts</h3><ul class="m-list">${shared.map(p => `<li><button type="button" class="m-row" data-place="${p.id}"><strong>${esc(p.name)}</strong><span>Mostly in ${esc(dMeta(p.district).name)}</span></button></li>`).join('')}</ul>` : ''}`;
+  }
+  const listedRow = p => `<li><button type="button" class="m-row" data-place="${p.id}" data-district="${p.district}"><strong>${esc(p.name)}</strong></button></li>`;
+  function viewCluster() { return `<button type="button" class="m-link" data-view-go="district">All places in ${esc(dMeta(S.slug).name)}</button><h2>Places here</h2><ul class="m-list">${S.cluster.map(byId).map(listedRow).join('')}</ul>`; }
+  function viewListed(p) {
+    const hotel = p.types[0] === 'stay', water = /Waterfall|Lake|Pond|Beach/.test(p.cat), added = trip.stops.includes(p.id), a = p.road && byId(p.road.anchor);
+    return `<button type="button" class="m-link" data-view-go="${S.lifted ? 'district' : 'districts'}">All places in ${esc(dMeta(p.district).name)}</button>
+      <p class="eyebrow">${esc(p.cat)} · Listed place</p><h2>${esc(p.name)}</h2><p class="m-sub">${esc(dMeta(p.district).name)} District</p>
+      <div class="m-actions">${!hotel && p.road ? `<button type="button" class="button button-moss" data-add="${p.id}">${added ? 'Added. Undo' : 'Add to My Trip'}</button>` : ''}<a class="button button-ghost" href="https://www.google.com/maps/dir/?api=1&destination=${p.lat},${p.lon}" target="_blank" rel="noopener">Get Directions</a></div>
+      <p class="m-hint">Not checked by us. Access, opening hours, fees and conditions are not confirmed, so ask locally before you go.</p>
+      ${water ? '<p class="m-note">This listing does not mean swimming or boating is safe or allowed here.</p>' : ''}
+      ${hotel ? `<dl class="m-dl"><div><dt>Official class</dt><dd>${p.star ? esc(p.star) + ' star class, Sri Lanka Tourism directory' : 'Not on record here'}</dd></div><div><dt>Rates and rooms</dt><dd>Not checked</dd></div></dl><p class="m-note">Not a Ceylonways partner. The planner's prices use sample stays, not this hotel.</p>` : ''}
+      ${a ? `<h3>Getting there</h3><p>About ${Math.round(p.road.km)} km by road from <button type="button" class="m-inline" data-place="${a.id}" ${a.hub ? 'disabled' : ''}>${esc(a.name)}</button>, around ${fmtMin(p.road.min)}.</p>` : ''}
+      <p class="m-source">Location ${p.src === 'osm' ? 'matches OpenStreetMap' : 'comes from an online map search'}. Listed ${esc('5 November 2026')}.</p>`;
   }
   const dist = (a, b) => Math.hypot(a[0] - b[0], a[1] - b[1]);
   const km = (a, b) => { const p = Math.PI / 180, x = Math.sin((b.lat - a.lat) * p / 2) ** 2 + Math.cos(a.lat * p) * Math.cos(b.lat * p) * Math.sin((b.lon - a.lon) * p / 2) ** 2; return 12742 * Math.asin(Math.sqrt(x)); };
   const fmtMin = m => { const h = Math.floor(m / 60), r = Math.round(m % 60 / 5) * 5; return h ? `${h} h${r ? ` ${r} min` : ''}` : `${r} min`; };
-  const leg = (a, b) => { if (!routes) return null; return routes[`${a}|${b}`] || routes[`${b}|${a}`] || null; };
+  const spur = id => { const p = byId(id); return p && p.listed ? p.road : null; };
+  const mainLeg = (a, b) => (a === b ? { km: 0, min: 0 } : routes[`${a}|${b}`] || routes[`${b}|${a}`] || null);
+  // A listed place joins the route through its road link to the closest guide place.
+  const leg = (a, b) => {
+    if (!routes) return null;
+    const ra = spur(a), rb = spur(b), mid = mainLeg(ra ? ra.anchor : a, rb ? rb.anchor : b);
+    return mid && { km: mid.km + (ra ? ra.km : 0) + (rb ? rb.km : 0), min: mid.min + (ra ? ra.min : 0) + (rb ? rb.min : 0) };
+  };
+  const legLine = (a, b) => {
+    const ra = spur(a), rb = spur(b), A = ra ? ra.anchor : a, B = rb ? rb.anchor : b;
+    let mid = [];
+    if (A !== B) { const f = routes[`${A}|${B}`]; mid = decode((f || routes[`${B}|${A}`]).g); if (!f) mid.reverse(); }
+    return [...(ra ? decode(ra.g).reverse() : []), ...mid, ...(rb ? decode(rb.g) : [])];
+  };
 
   function viewPlace() {
     const p = byId(S.place), added = trip.stops.includes(p.id);
+    if (p.listed) return viewListed(p);
     const acts = (p.activities || []).map(id => E.actById[id]).filter(Boolean);
     const nearby = places.filter(x => x.id !== p.id).map(x => ({ x, d: km(p, x) })).sort((a, b) => a.d - b.d).slice(0, 3);
     const pk = CW.packages.filter(k => k.stops.some(s => s.acts.some(a => (p.activities || []).includes(a))));
@@ -460,8 +533,8 @@
 
   function viewFilters() {
     const f = S.filters, chip = (group, k, l) => `<button type="button" class="chip-btn" data-filter-group="${group}" data-filter-key="${k}" aria-pressed="${f[group].includes(k)}">${esc(l)}</button>`;
-    const hit = places.filter(matches).length;
-    return `<h2>Filters</h2><p class="m-note">${hit} of ${places.length} places match.${hit ? '' : ' Try removing a filter.'}</p>
+    const every = everything(), hit = every.filter(matches).length;
+    return `<h2>Filters</h2><p class="m-note">${hit} of ${every.length} places match.${hit ? '' : ' Try removing a filter.'}</p>
       <h3>Climate</h3><div class="m-chips">${Object.entries(CLIMATES).map(([k, l]) => chip('climate', k, l)).join('')}</div>
       <h3>Experience</h3><div class="m-chips">${Object.entries(TYPES).map(([k, l]) => chip('types', k, l)).join('')}</div>
       <h3>Travel month</h3><label class="m-field"><span class="visually-hidden">Travel month</span><select id="m-month"><option value="">Any month</option>${MONTHS.map((m, i) => `<option value="${i}"${String(i) === String(f.month) ? ' selected' : ''}>${m}</option>`).join('')}</select></label>
@@ -485,7 +558,7 @@
     if (S.view === 'place' || S.view === 'trip') { const hold = S.place; setView(S.view); S.place = hold; }
   }
   function viewTrip() {
-    const stops = trip.stops.map(byId);
+    const stops = trip.stops.map(byId).filter(Boolean);
     const empty = trip.districts.filter(d => !stops.some(s => s.district === d));
     const starts = [...hubs, ...places].map(o => `<option value="${o.id}"${o.id === trip.start ? ' selected' : ''}>${esc(o.name)}</option>`).join('');
     return `<h2>My Trip</h2>
@@ -528,9 +601,9 @@
     const legs = []; let coords = [];
     for (let i = 0; i < seq.length - 1; i++) {
       const a = seq[i], b = seq[i + 1]; if (a === b) continue;
-      const fwd = routes[`${a}|${b}`], r = fwd || routes[`${b}|${a}`];
+      const r = leg(a, b);
       if (!r) return null;
-      const line = decode(r.g); if (!fwd) line.reverse();
+      const line = legLine(a, b);
       legs.push({ a, b, km: r.km, min: r.min, line }); coords = coords.concat(line);
     }
     const limit = PACE[trip.pace], days = [{ n: 1, items: [], used: 0 }];
@@ -554,7 +627,7 @@
     const out = () => $('m-itin');
     if (S.lifted) await unlift();
     setView('trip'); out().innerHTML = '<p class="m-note">Finding road routes…</p>';
-    try { await needRoutes(); } catch (e) { out().innerHTML = `<p class="m-note">We couldn't get a road route. Please try again.</p><button type="button" class="button button-ghost" data-build="1">Try Again</button>`; return; }
+    try { await Promise.all([needRoutes(), needListings()]); } catch (e) { out().innerHTML = `<p class="m-note">We couldn't get a road route. Please try again.</p><button type="button" class="button button-ghost" data-build="1">Try Again</button>`; return; }
     const it = makeItinerary();
     if (!it) { out().innerHTML = "<p class=\"m-note\">We couldn't get a road route. Please try again.</p>"; return; }
     setView('trip');
@@ -676,6 +749,7 @@
     if (d.place) { const p = byId(d.place); if (S.lifted && p.district === S.slug) openPlace(d.place, true); else lift(p.district, d.place); return; }
     if (d.district) return lift(d.district);
     if (d.add) return toggleStop(d.add);
+    if (d.hotels) { S.hotels = !S.hotels; counts(); drawMarkers(); return setView('district'); }
     if (d.viewGo) { S.place = null; setView(d.viewGo); syncUrl(); return; }
     if (d.filterGroup) { const a = S.filters[d.filterGroup], i = a.indexOf(d.filterKey); i < 0 ? a.push(d.filterKey) : a.splice(i, 1); afterFilter(); return; }
     if (d.clearFilters) { S.filters = { types: [], climate: [], month: '' }; afterFilter(); return; }
@@ -708,9 +782,10 @@
     const h = !S.open ? '' : '#map' + (S.slug ? '/' + S.slug + (S.place ? '/' + S.place : '') : '');
     if (location.hash !== h) history.replaceState(null, '', location.pathname + location.search + h);
   }
-  function routeFromUrl() {
-    const m = location.hash.match(/^#map(?:\/([a-z-]+))?(?:\/([a-z-]+))?/); if (!m) return;
+  async function routeFromUrl() {
+    const m = location.hash.match(/^#map(?:\/([a-z-]+))?(?:\/([a-z0-9-]+))?/); if (!m) return;
     expand();
+    if (m[2]) await needListings();
     if (m[1] && dMeta(m[1])) lift(m[1], m[2] && byId(m[2]) ? m[2] : undefined);
   }
   function afterReady() {

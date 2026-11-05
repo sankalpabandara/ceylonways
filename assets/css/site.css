@@ -1176,3 +1176,17 @@ body.map-open .site-header, body.map-open .mobile-plan { display: none; }
 .prose .act-list { margin-top: .4em; }
 .page-head .hero-actions { margin-bottom: 12px; }
 .panel h2.h3, .pkg-side h2.h3 { font-size: 22px; letter-spacing: -0.02em; }
+
+/* Listed places */
+.m-dot { display: flex; align-items: center; gap: 5px; min-width: 28px; min-height: 28px; padding: 6px; border: 0; background: none; color: #fff; font: 500 12px var(--body); text-shadow: 0 1px 3px #000, 0 0 2px #000; cursor: pointer; white-space: nowrap; }
+.m-dot i { flex: none; width: 10px; height: 10px; border-radius: 50%; background: var(--ivory); border: 1.5px solid var(--ink); }
+.m-dot span { display: none; }
+.m-dot.has-name span, .m-dot:hover span, .m-dot:focus-visible span, .m-dot.is-on span { display: inline; }
+.m-dot.is-on i { background: var(--lime); transform: scale(1.5); }
+.m-dot.m-t-stay i { background: #C9A7E8; border-radius: 3px; }
+.m-dot.m-t-culture i { background: #D9C29A; } .m-dot.m-t-beach i { background: #4FB3D9; } .m-dot.m-t-nature i { background: #7BC47F; } .m-dot.m-t-hiking i { background: #BED180; }
+.m-group { display: grid; place-items: center; min-width: 30px; height: 30px; padding: 0 6px; border-radius: 999px; border: 1.5px solid var(--ink); background: rgba(243, 245, 233, .92); color: var(--ink); font: 700 12.5px var(--body); cursor: pointer; }
+.m-more { border-top: 1px solid var(--line); }
+.m-more summary { min-height: 44px; display: flex; align-items: center; cursor: pointer; font-size: 15px; font-weight: 500; }
+.m-more .m-row { min-height: 40px; padding: 6px 10px; }
+.m-inline[disabled] { color: inherit; text-decoration: none; cursor: default; }
