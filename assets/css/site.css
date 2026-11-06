@@ -1,5 +1,12 @@
 /* Ceylonways. A printed atlas of Sri Lanka: white paper, one ink, one sapphire blue.
    Design rules live in design-system/ceylonways/MASTER.md. */
+/* Fonts are hosted here and trimmed by tools/fonts.py, so they do not hold up the map. */
+@font-face { font-family: 'Newsreader'; src: url('../fonts/newsreader.woff2') format('woff2'); font-weight: 400; font-style: normal; font-display: swap; }
+@font-face { font-family: 'Newsreader'; src: url('../fonts/newsreader-bold.woff2') format('woff2'); font-weight: 600 700; font-style: normal; font-display: swap; }
+@font-face { font-family: 'Newsreader'; src: url('../fonts/newsreader-italic.woff2') format('woff2'); font-weight: 400; font-style: italic; font-display: swap; }
+@font-face { font-family: 'Public Sans'; src: url('../fonts/public-sans.woff2') format('woff2'); font-weight: 400 600; font-style: normal; font-display: swap; }
+@font-face { font-family: 'Noto Serif Sinhala'; src: url('../fonts/noto-serif-sinhala.woff2') format('woff2'); font-weight: 400; font-display: swap; unicode-range: U+0D80-0DFF, U+200C-200D; }
+@font-face { font-family: 'Noto Serif Tamil'; src: url('../fonts/noto-serif-tamil.woff2') format('woff2'); font-weight: 400; font-display: swap; unicode-range: U+0B80-0BFF; }
 :root {
   --paper: #FFFFFF;
   --wash: #F2F4F7;
@@ -87,7 +94,7 @@ p a:hover, .prose a:hover, .small a:hover, .link:hover { color: var(--accent-dee
 /* ---------- Header ---------- */
 .site-header { position: fixed; top: 0; left: 0; right: 0; z-index: 50; background: var(--paper); border-bottom: 1px solid var(--rule); transition: background var(--fast) var(--ease), border-color var(--fast) var(--ease); }
 .nav-bar { max-width: var(--wrap); margin: 0 auto; height: var(--header-h); padding: 0 var(--gutter); display: flex; align-items: center; gap: 24px; }
-.brand { display: inline-flex; align-items: center; gap: 10px; text-decoration: none; font: 500 25px/1 var(--serif); letter-spacing: -.01em; }
+.brand { display: inline-flex; align-items: center; gap: 10px; text-decoration: none; font: 400 25px/1 var(--serif); letter-spacing: -.01em; }
 .logo-mark { width: 15px; height: 26px; flex: none; fill: currentColor; }
 .site-nav { flex: 1; display: flex; align-items: center; justify-content: flex-end; }
 .nav-list, .nav-secondary { list-style: none; margin: 0; padding: 0; display: flex; align-items: center; gap: 4px; }

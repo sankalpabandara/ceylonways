@@ -1,0 +1,8 @@
+Newsreader, Public Sans, Noto Serif Sinhala and Noto Serif Tamil are licensed under the SIL Open Font License 1.1.
+https://openfontlicense.org
+
+Newsreader: Copyright 2020 The Newsreader Project Authors.
+Public Sans: Copyright 2015 The Public Sans Project Authors.
+Noto Serif Sinhala and Noto Serif Tamil: Copyright 2022 The Noto Project Authors.
+
+These files are subsets made with tools/fonts.py.
