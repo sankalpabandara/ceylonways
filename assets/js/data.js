@@ -14,6 +14,8 @@
     allowIndexing: false,
     // Opens only place, district and travel guide pages to search engines while sample prices stay out.
     allowGuideIndexing: true,
+    // Proves ownership in Google Search Console. Removing it loses verification.
+    googleVerification: 'fi2Ulawg_ERQVMK57339IeFyUnfOaSJ98OhnILpZqQg',
     dataLabel: 'Sample data',
     sampleDate: '3 November 2026',
     // The founder first asked for Google Maps scores of 5.0.
