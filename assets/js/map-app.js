@@ -748,12 +748,17 @@
   /* ---------- Live Location: consent, permission, then a geographic check ---------- */
   function viewLocation() {
     const nearby = () => places.map(p => ({ p, d: km(loc, p) })).sort((a, b) => a.d - b.d).slice(0, 5);
+    const retry = '<button type="button" class="button button-moss" data-loc="yes">Try Again</button>';
+    const rough = loc.rough >= 1000 ? `${Math.round(loc.rough / 1000)} km` : `${Math.round(loc.rough)} m`;
     const msgs = {
       off: `<h2>My location</h2><p>Are you currently in Sri Lanka?</p><div class="m-actions"><button type="button" class="button button-moss" data-loc="yes">Yes, show my location</button><button type="button" class="button button-ghost" data-loc="no">No</button></div><p class="m-source">Your position stays in this browser. It is never saved or sent to us.</p>`,
-      asking: '<h2>My location</h2><p class="m-note">Waiting for your browser…</p>',
+      asking: `<h2>My location</h2><p class="m-note">${loc.rough ? `Getting a closer position. So far it is accurate to about ${rough}.` : 'Waiting for your browser…'}</p>`,
       no: '<h2>My location</h2><p class="m-note">No problem. You can explore and plan your trip by hand.</p>',
       outside: '<h2>My location</h2><p>Live Location is available only while you are in Sri Lanka. You can still explore destinations and plan your trip.</p>',
-      unverified: `<h2>My location</h2><p>We couldn't verify your current location. Please enable location access and try again.</p><button type="button" class="button button-moss" data-loc="yes">Try Again</button>`
+      unverified: `<h2>My location</h2><p>We couldn't verify your current location. Please enable location access and try again.</p>${retry}`,
+      blocked: `<h2>My location</h2><p>We couldn't verify your current location. Please enable location access and try again.</p><p class="m-note">Location is blocked for this site. Allow it from the icon beside the address bar.</p>${retry}`,
+      nofix: `<h2>My location</h2><p>We couldn't verify your current location. Your device could not find its position.</p><p class="m-note">Turn on WiFi or GPS, then try again.</p>${retry}`,
+      rough: `<h2>My location</h2><p>We couldn't verify your current location. Your device only gave a rough position, accurate to about ${rough}. We need 2 km or better.</p><p class="m-note">Laptops are often less exact than phones. Try again with WiFi on, or use your phone.</p>${retry}`
     };
     if (loc.state !== 'on') return msgs[loc.state];
     const list = nearby();
@@ -781,17 +786,25 @@
     if (state !== 'on') { hideLocMarker(); }
     if (S.view === 'location') setView('location');
   }
-  function stopWatch() { if (loc.id !== null) navigator.geolocation.clearWatch(loc.id); loc.id = null; clearTimeout(loc.timer); }
+  function stopWatch() { if (loc.id !== null) navigator.geolocation.clearWatch(loc.id); loc.id = null; clearTimeout(loc.timer); loc.timer = null; }
+  function giveUpAfter(ms, state) { if (!loc.timer) loc.timer = setTimeout(() => { stopWatch(); clearPosition(); setLoc(state); }, ms); }
   function startLoc() {
     if (!('geolocation' in navigator)) return setLoc('unverified');
-    setLoc('asking'); stopWatch();
-    loc.id = navigator.geolocation.watchPosition(reading, () => { stopWatch(); clearPosition(); setLoc('unverified'); }, { enableHighAccuracy: true, maximumAge: 10000, timeout: 20000 });
+    stopWatch(); loc.rough = 0; setLoc('asking');
+    loc.id = navigator.geolocation.watchPosition(reading, e => {
+      // A slow reading is not a failure while a position is already held or a closer one is awaited.
+      if (e.code !== 1 && loc.state === 'on') return giveUpAfter(60000, 'unverified');
+      if (e.code !== 1 && loc.rough) return;
+      stopWatch(); clearPosition(); setLoc(e.code === 1 ? 'blocked' : 'nofix');
+    }, { enableHighAccuracy: true, maximumAge: 10000, timeout: 20000 });
   }
   function reading(pos) {
     const { latitude: lat, longitude: lon, accuracy: acc } = pos.coords, r = classify(lon, lat, acc);
-    if (r === 'inside') { Object.assign(loc, { lat, lon, acc, last: Date.now() }); clearTimeout(loc.timer); const was = loc.state; loc.state = 'on'; showLocMarker(); if (was !== 'on' || S.view === 'location') { if (S.view === 'location') setView('location'); } return; }
+    if (r === 'inside') { Object.assign(loc, { lat, lon, acc, last: Date.now() }); clearTimeout(loc.timer); loc.timer = null; const was = loc.state; loc.state = 'on'; showLocMarker(); if (was !== 'on' || S.view === 'location') { if (S.view === 'location') setView('location'); } return; }
     if (r === 'outside') { stopWatch(); clearPosition(); return setLoc('outside'); }
-    if (loc.state === 'on') { if (!loc.timer) loc.timer = setTimeout(() => { stopWatch(); clearPosition(); setLoc('unverified'); loc.timer = null; }, 60000); if (S.view === 'location') setView('location'); } else { stopWatch(); clearPosition(); setLoc('unverified'); }
+    if (loc.state === 'on') { giveUpAfter(60000, 'unverified'); if (S.view === 'location') setView('location'); return; }
+    // First readings are often rough, so keep listening for a closer one before giving up.
+    loc.rough = Math.min(loc.rough || Infinity, acc); setLoc('asking'); giveUpAfter(15000, 'rough');
   }
   function clearPosition() { loc.lat = 0; loc.lon = 0; loc.acc = 0; loc.last = 0; }
   let locMarkers = [];
