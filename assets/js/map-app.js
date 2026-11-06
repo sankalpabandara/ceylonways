@@ -58,7 +58,7 @@
     const bar = $('mask-bar'); if (bar) { bar.style.width = pct + '%'; loader.setAttribute('aria-valuenow', pct); }
   }
   async function pull(url, key, share, base) {
-    const res = await fetch(url);
+    const res = await fetch(url, { priority: 'high' });
     if (!res.ok) throw new Error('HTTP ' + res.status);
     const total = Number(res.headers.get('content-length')) || 0;
     if (!res.body || !total || res.headers.get('content-encoding')) { const t = await res.text(); bump(key, base + share); return t; }
@@ -109,9 +109,8 @@
     try {
       if (location.protocol === 'file:') throw new Error('needs a web server');
       if (canRun3D()) {
-        if (!window.maplibregl) { const t = await pull(asset('assets/js/vendor/maplibre-gl.js'), 'lib', 1, 0); await loadScriptText(t); }
+        await Promise.all([window.maplibregl || pull(asset('assets/js/vendor/maplibre-gl.js'), 'lib', 1, 0).then(loadScriptText), loadData()]);
         bump('lib', 1);
-        await loadData();
         renderUI();
         await createMaps();
       } else {
@@ -181,8 +180,9 @@
         [island, district].forEach(m => { m.terrain.getMeshFrameDelta = () => SKIRT; }); // short skirts: see spike/matale-lift/README.md
         setCompactGestures(true);
         island.jumpTo(islandCam()); district.jumpTo(islandCam());
+        // The homepage is ready behind the loader, so tiles still arriving should not hold it up.
         island.once('idle', resolve);
-        setTimeout(resolve, 15000);
+        setTimeout(resolve, 1200);
       };
       island.once('load', go); district.once('load', go);
       island.on('mousemove', 'dim', e => { if (!S.open || S.lifted || isPhone()) return; const f = e.features[0]; hover(f.properties.slug, e.point); });
@@ -750,20 +750,21 @@
     const nearby = () => places.map(p => ({ p, d: km(loc, p) })).sort((a, b) => a.d - b.d).slice(0, 5);
     const retry = '<button type="button" class="button button-moss" data-loc="yes">Try Again</button>';
     const rough = loc.rough >= 1000 ? `${Math.round(loc.rough / 1000)} km` : `${Math.round(loc.rough)} m`;
+    const pick = `<label class="m-field">Or choose where you are<select id="m-here-pick"><option value="">Choose a place</option>${places.slice().sort((a, b) => a.name.localeCompare(b.name)).map(p => `<option value="${p.id}">${esc(p.name)}</option>`).join('')}</select></label>`;
     const msgs = {
       off: `<h2>My location</h2><p>Are you currently in Sri Lanka?</p><div class="m-actions"><button type="button" class="button button-moss" data-loc="yes">Yes, show my location</button><button type="button" class="button button-ghost" data-loc="no">No</button></div><p class="m-source">Your position stays in this browser. It is never saved or sent to us.</p>`,
-      asking: `<h2>My location</h2><p class="m-note">${loc.rough ? `Getting a closer position. So far it is accurate to about ${rough}.` : 'Waiting for your browser…'}</p>`,
+      asking: `<h2>My location</h2><p class="m-note">${loc.rough ? `Getting a closer position. So far it is accurate to about ${rough}.` : 'Waiting for your browser…'}</p>${loc.rough ? pick : ''}`,
       no: '<h2>My location</h2><p class="m-note">No problem. You can explore and plan your trip by hand.</p>',
       outside: '<h2>My location</h2><p>Live Location is available only while you are in Sri Lanka. You can still explore destinations and plan your trip.</p>',
-      unverified: `<h2>My location</h2><p>We couldn't verify your current location. Please enable location access and try again.</p>${retry}`,
-      blocked: `<h2>My location</h2><p>We couldn't verify your current location. Please enable location access and try again.</p><p class="m-note">Location is blocked for this site. Allow it from the icon beside the address bar.</p>${retry}`,
-      nofix: `<h2>My location</h2><p>We couldn't verify your current location. Your device could not find its position.</p><p class="m-note">Turn on WiFi or GPS, then try again.</p>${retry}`,
-      rough: `<h2>My location</h2><p>We couldn't verify your current location. Your device only gave a rough position, accurate to about ${rough}. We need 2 km or better.</p><p class="m-note">Laptops are often less exact than phones. Try again with WiFi on, or use your phone.</p>${retry}`
+      unverified: `<h2>My location</h2><p>We couldn't verify your current location. Please enable location access and try again.</p>${retry}${pick}`,
+      blocked: `<h2>My location</h2><p>We couldn't verify your current location. Please enable location access and try again.</p><p class="m-note">Location is blocked for this site. Allow it from the icon beside the address bar.</p>${retry}${pick}`,
+      nofix: `<h2>My location</h2><p>We couldn't verify your current location. Your device could not find its position.</p><p class="m-note">Turn on WiFi or GPS, then try again.</p>${retry}${pick}`,
+      rough: `<h2>My location</h2><p>We couldn't verify your current location. Your device only gave a rough position, accurate to about ${rough}. We need 2 km or better.</p><p class="m-note">Laptops are often less exact than phones. Try your phone, or choose where you are.</p>${retry}${pick}`
     };
     if (loc.state !== 'on') return msgs[loc.state];
     const list = nearby();
-    return `<h2>You are here</h2><p class="m-note">Accurate to about ${Math.round(loc.acc)} m${Date.now() - loc.last > 15000 ? '. Updating' : ''}.</p>
-      <button type="button" class="button button-ghost" data-loc="stop">Stop sharing my location</button>
+    return `<h2>${loc.picked ? `Near ${esc(loc.picked)}` : 'You are here'}</h2><p class="m-note">${loc.picked ? 'You chose this place. Your device is not sharing a position' : `Accurate to about ${Math.round(loc.acc)} m${Date.now() - loc.last > 15000 ? '. Updating' : ''}`}.</p>
+      <button type="button" class="button button-ghost" data-loc="stop">${loc.picked ? 'Clear this place' : 'Stop sharing my location'}</button>
       <h3>Nearby</h3><ul class="m-list">${list.map(n => `<li><button type="button" class="m-row" data-place="${n.p.id}" data-district="${n.p.district}"><strong>${esc(n.p.name)}</strong><span>${n.d < 1 ? 'Less than 1 km away' : `About ${n.d < 10 ? n.d.toFixed(1) : Math.round(n.d)} km away`} in a straight line</span></button></li>`).join('')}</ul>
       <button type="button" class="button button-moss" data-loc="start" data-near="${list[0].p.id}">Start my trip here</button>
       <p class="m-source">Routes begin at your closest listed place, ${esc(list[0].p.name)}, because roads are worked out in advance.</p>`;
@@ -790,7 +791,7 @@
   function giveUpAfter(ms, state) { if (!loc.timer) loc.timer = setTimeout(() => { stopWatch(); clearPosition(); setLoc(state); }, ms); }
   function startLoc() {
     if (!('geolocation' in navigator)) return setLoc('unverified');
-    stopWatch(); loc.rough = 0; setLoc('asking');
+    stopWatch(); loc.rough = 0; loc.picked = ''; setLoc('asking');
     loc.id = navigator.geolocation.watchPosition(reading, e => {
       // A slow reading is not a failure while a position is already held or a closer one is awaited.
       if (e.code !== 1 && loc.state === 'on') return giveUpAfter(60000, 'unverified');
@@ -804,9 +805,17 @@
     if (r === 'outside') { stopWatch(); clearPosition(); return setLoc('outside'); }
     if (loc.state === 'on') { giveUpAfter(60000, 'unverified'); if (S.view === 'location') setView('location'); return; }
     // First readings are often rough, so keep listening for a closer one before giving up.
-    loc.rough = Math.min(loc.rough || Infinity, acc); setLoc('asking'); giveUpAfter(15000, 'rough');
+    const best = Math.min(loc.rough || Infinity, acc);
+    if (best !== loc.rough) { loc.rough = best; setLoc('asking'); }
+    giveUpAfter(15000, 'rough');
   }
-  function clearPosition() { loc.lat = 0; loc.lon = 0; loc.acc = 0; loc.last = 0; }
+  function clearPosition() { loc.lat = 0; loc.lon = 0; loc.acc = 0; loc.last = 0; loc.picked = ''; }
+  // Laptops often cannot get close enough, so a visitor can name the place instead.
+  function pickHere(id) {
+    const p = byId(id); stopWatch();
+    Object.assign(loc, { lat: p.lat, lon: p.lon, acc: 0, last: Date.now(), picked: p.name, state: 'on' });
+    showLocMarker(); setView('location'); announce(`Showing places near ${p.name}.`);
+  }
   let locMarkers = [];
   function circle() { const n = 48, out = [], d = loc.acc / 111320; for (let i = 0; i <= n; i++) { const a = i / n * 2 * Math.PI; out.push([loc.lon + d * Math.cos(a) / Math.cos(loc.lat * Math.PI / 180), loc.lat + d * Math.sin(a)]); } return { type: 'Feature', properties: {}, geometry: { type: 'Polygon', coordinates: [out] } }; }
   function showLocMarker() {
@@ -849,6 +858,7 @@
   function onPanelChange(e) {
     const id = e.target.id, v = e.target.value;
     if (id === 'm-month') { S.filters.month = v; return afterFilter(); }
+    if (id === 'm-here-pick') return v ? pickHere(v) : undefined;
     if (id === 'm-start') trip.start = v;
     if (id === 'm-loop') trip.loop = e.target.checked;
     if (id === 'm-days') trip.days = Math.min(30, Math.max(1, Number(v) || 1));
