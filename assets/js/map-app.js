@@ -475,10 +475,27 @@
   }
   const listedRow = p => `<li><button type="button" class="m-row" data-place="${p.id}" data-district="${p.district}"><strong>${esc(p.name)}</strong></button></li>`;
   function viewCluster() { return `<button type="button" class="m-link" data-view-go="district">All places in ${esc(dMeta(S.slug).name)}</button><h2>Places here</h2><ul class="m-list">${S.cluster.map(byId).map(listedRow).join('')}</ul>`; }
+  // Photos and links for the panels load after the map, so they never slow the first view.
+  let media = null, mediaReady = null;
+  function needMedia() {
+    if (!mediaReady) mediaReady = fetch(asset('assets/map/media.json')).then(r => r.json()).then(m => { media = m; if (S.view === 'place') setView('place'); }).catch(() => { mediaReady = null; });
+    return mediaReady;
+  }
+  const photoBlock = (src, alt, m) => `<figure class="m-photo"><img src="${asset(src)}" alt="${esc(alt)}" decoding="async">${m ? `<figcaption><a href="${esc(m.u)}" target="_blank" rel="noopener">${esc(m.c)}</a></figcaption>` : ''}</figure>`;
+  function placePhoto(p) {
+    const m = media && media.places[p.id];
+    return `${photoBlock(`assets/img/places/${p.id}-1-800.webp`, m ? m.a : `${p.name}, Sri Lanka`, m)}<p><a class="m-guide" href="${asset(`places/${p.id}.html`)}">Read the full guide</a></p>`;
+  }
+  function listedPhoto(p) {
+    const m = media && media.listed[p.id];
+    if (!m) return '';
+    return `${m.f ? photoBlock(`assets/img/listed/${m.f}`, `${p.name}, Sri Lanka`, m) : ''}${m.w ? `<p><a class="m-guide" href="${esc(m.w)}" target="_blank" rel="noopener">Read about it on Wikipedia</a></p>` : ''}`;
+  }
   function viewListed(p) {
+    needMedia();
     const hotel = p.types[0] === 'stay', water = /Waterfall|Lake|Pond|Beach/.test(p.cat), added = trip.stops.includes(p.id), a = p.road && byId(p.road.anchor);
     return `<button type="button" class="m-link" data-view-go="${S.lifted ? 'district' : 'districts'}">All places in ${esc(dMeta(p.district).name)}</button>
-      <p class="eyebrow">${esc(p.cat)} · Listed place</p><h2>${esc(p.name)}</h2><p class="m-sub">${esc(dMeta(p.district).name)} District</p>
+      <p class="eyebrow">${esc(p.cat)} · Listed place</p><h2>${esc(p.name)}</h2><p class="m-sub">${esc(dMeta(p.district).name)} District</p>${listedPhoto(p)}
       <div class="m-actions">${!hotel && p.road ? `<button type="button" class="button button-moss" data-add="${p.id}">${added ? 'Added. Undo' : 'Add to My Trip'}</button>` : ''}<a class="button button-ghost" href="https://www.google.com/maps/dir/?api=1&destination=${p.lat},${p.lon}" target="_blank" rel="noopener">Get Directions</a></div>
       <p class="m-hint">Not checked by us. Access, opening hours, fees and conditions are not confirmed, so ask locally before you go.</p>
       ${water ? '<p class="m-note">This listing does not mean swimming or boating is safe or allowed here.</p>' : ''}
@@ -507,6 +524,7 @@
   function viewPlace() {
     const p = byId(S.place), added = trip.stops.includes(p.id);
     if (p.listed) return viewListed(p);
+    needMedia();
     const acts = (p.activities || []).map(id => E.actById[id]).filter(Boolean);
     const nearby = places.filter(x => x.id !== p.id).map(x => ({ x, d: km(p, x) })).sort((a, b) => a.d - b.d).slice(0, 3);
     const pk = CW.packages.filter(k => k.stops.some(s => s.acts.some(a => (p.activities || []).includes(a))));
@@ -515,6 +533,7 @@
     return `<button type="button" class="m-link" data-view-go="${S.lifted ? 'district' : 'districts'}">All places in ${esc(dMeta(p.district).name)}</button>
       <p class="eyebrow">${esc(p.types.map(t => TYPES[t]).join(' · '))}</p><h2>${esc(p.name)}</h2>
       <p class="m-sub">${esc(dMeta(p.district).name)} District${(p.also || []).length ? `, also in ${esc(p.also.map(a => dMeta(a).name).join(', '))}` : ''}</p>
+      ${placePhoto(p)}
       <div class="m-actions"><button type="button" class="button button-moss" data-add="${p.id}">${added ? 'Added. Undo' : 'Add to My Trip'}</button>${pk.length ? `<a class="button button-ghost" href="#m-pk-${p.id}">View Packages</a>` : ''}<a class="button button-ghost" href="https://www.google.com/maps/dir/?api=1&destination=${p.lat},${p.lon}" target="_blank" rel="noopener">Get Directions</a></div>
       <p>${esc(p.overview)}</p><p class="m-why"><strong>Why go.</strong> ${esc(p.why)}</p>
       ${acts.length ? `<h3>Things to do</h3><ul class="m-facts">${acts.map(a => `<li><strong>${esc(a.name)}</strong><span>${a.hours} h · ${esc(a.when)}${a.adult ? ` · about ${E.money(a.adult, 'USD')} per adult, sample price` : ' · free'}</span></li>`).join('')}</ul>` : ''}
@@ -885,6 +904,7 @@
     $('m-explore').onclick = () => expand(); $('m-tap').onclick = () => expand();
     if (!simple) startDrift();
     counts(); routeFromUrl();
+    setTimeout(needMedia, 2500);
   }
 
   /* ---------- Simple map: flat SVG from the same boundaries ---------- */

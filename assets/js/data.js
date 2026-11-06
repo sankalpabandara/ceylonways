@@ -12,6 +12,8 @@
     siteUrl: 'https://sankalpabandara.github.io/ceylonways',
     // Keep false while prices are sample data. Set true at launch to let search engines in.
     allowIndexing: false,
+    // Opens only place, district and travel guide pages to search engines while sample prices stay out.
+    allowGuideIndexing: true,
     dataLabel: 'Sample data',
     sampleDate: '3 November 2026',
     // The founder first asked for Google Maps scores of 5.0.
@@ -165,7 +167,7 @@
   const A = (id, base, name, type, hours, adult, child, extra) =>
     Object.assign({ id, base, name, type, hours, adult, child, minAge: 0 }, extra);
   const activities = [
-    A('sig-rock', 'sigiriya', 'Climb Sigiriya Rock', 'culture', 3, 36, 18, { when: 'Early morning', note: 'About 1,200 steps. Go at opening time to avoid the heat.', entry: true }),
+    A('sig-rock', 'sigiriya', 'Climb Sigiriya Rock', 'culture', 3, 35, 20, { when: 'Early morning', note: 'About 1,200 steps. Go at opening time to avoid the heat.', entry: true }),
     A('sig-dambulla', 'sigiriya', 'Dambulla cave temple', 'culture', 2, 10, 0, { when: 'Afternoon', note: 'Cover shoulders and knees.', entry: true }),
     A('sig-safari', 'sigiriya', 'Minneriya or Kaudulla jeep safari', 'wildlife', 3.5, 48, 30, { when: 'Afternoon', note: 'Large elephant herds gather here, mostly from July to October.' }),
     A('sig-polon', 'sigiriya', 'Polonnaruwa ancient city by bicycle', 'culture', 5, 35, 18, { when: 'Morning', note: 'One hour each way by road. Flat and easy cycling.', entry: true }),
