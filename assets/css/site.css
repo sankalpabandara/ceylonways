@@ -1026,6 +1026,7 @@ body.is-loading { overflow: hidden; }
 #mask-actions { display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; }
 #mask-actions[hidden] { display: none; }
 html:not(.js) #mask-loader { display: none; }
+html:not(.js) img[data-src] { display: none; }
 
 .mstage { position: relative; height: 100vh; height: 100svh; min-height: 620px; overflow: hidden; isolation: isolate; background: radial-gradient(70% 70% at 68% 48%, #123F4E, #0A2530 62%, var(--ink)); }
 .mstage.is-open { position: fixed; inset: 0; z-index: 60; height: auto; min-height: 0; }

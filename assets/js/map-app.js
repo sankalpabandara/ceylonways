@@ -70,8 +70,9 @@
     return new Promise((res, rej) => { const u = URL.createObjectURL(new Blob([text], { type: 'text/javascript' })); const s = document.createElement('script'); s.src = u; s.onload = () => { URL.revokeObjectURL(u); res(); }; s.onerror = rej; document.head.append(s); });
   }
   function status(t) { const e = $('mask-status'); if (e) e.textContent = t; }
+  function showPhotos() { document.querySelectorAll('img[data-src]').forEach(i => { i.srcset = i.dataset.srcset; i.src = i.dataset.src; i.removeAttribute('data-src'); }); }
   function fail() {
-    if (failed) return; failed = true; clearInterval(watchdog);
+    if (failed) return; failed = true; clearInterval(watchdog); showPhotos();
     loader.classList.add('is-failed'); status("The map didn't load.");
     $('mask-actions').hidden = false;
   }
@@ -79,6 +80,7 @@
     clearInterval(watchdog); bump('tiles', 1);
     loader.classList.add('is-done'); document.body.classList.remove('is-loading');
     setTimeout(() => loader.remove(), reduce ? 200 : 520);
+    setTimeout(showPhotos, 400);
   }
   function startWatch() {
     lastMove = Date.now();
