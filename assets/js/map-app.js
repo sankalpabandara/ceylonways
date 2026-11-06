@@ -136,6 +136,21 @@
   };
   const islandCam = () => { const c = island.cameraForBounds([[79.55, 5.85], [81.95, 9.9]], { padding: camPad(), pitch: S.open ? 45 : 30, bearing: 0 }); return { center: c.center, zoom: c.zoom, pitch: S.open ? 45 : 30, bearing: 0, padding: { top: 0, bottom: 0, left: 0, right: 0 } }; };
 
+  // Whole degrees of latitude and longitude, drawn under the island like a printed chart.
+  const degreeGrid = () => {
+    const line = c => ({ type: 'Feature', properties: {}, geometry: { type: 'LineString', coordinates: c } }), f = [];
+    for (let x = 76; x <= 86; x++) f.push(line([[x, 1], [x, 15]]));
+    for (let y = 1; y <= 15; y++) f.push(line([[76, y], [86, y]]));
+    return { type: 'FeatureCollection', features: f };
+  };
+  const SEAS = [['Bay of Bengal', 82.45, 8.75], ['Indian Ocean', 82.05, 5.95], ['Gulf of Mannar', 79.1, 8.75], ['Palk Strait', 79.45, 10.1]];
+  function seaNames() {
+    SEAS.forEach(([name, lon, lat]) => {
+      const el = document.createElement('span'); el.className = 'm-sea'; el.textContent = name; el.setAttribute('aria-hidden', 'true');
+      new maplibregl.Marker({ element: el, anchor: 'center', opacityWhenCovered: 1 }).setLngLat([lon, lat]).addTo(island);
+    });
+  }
+
   function createMaps() {
     return new Promise((resolve, reject) => {
       const opts = { attributionControl: false, center: [80.7, 7.8], zoom: 6.6, pitch: 30, maxZoom: 12.5, minZoom: 5.5, maxPitch: 70, canvasContextAttributes: { antialias: true } };
@@ -146,16 +161,18 @@
           dem: terrain(), districts: { type: 'geojson', data: districtsGeo, promoteId: 'slug' },
           route: { type: 'geojson', lineMetrics: true, data: { type: 'FeatureCollection', features: [] } },
           pulse: { type: 'geojson', data: { type: 'FeatureCollection', features: [] } },
-          loc: { type: 'geojson', data: { type: 'FeatureCollection', features: [] } }
+          loc: { type: 'geojson', data: { type: 'FeatureCollection', features: [] } },
+          grid: { type: 'geojson', data: degreeGrid() }
         },
         terrain: { source: 'dem', exaggeration: EXAG },
         layers: [
+          { id: 'grid', type: 'line', source: 'grid', paint: { 'line-color': 'rgba(255,255,255,.16)', 'line-width': 0.7 } },
           { id: 'sat', type: 'raster', source: 'sat', paint: IMAGERY },
-          { id: 'dim', type: 'fill', source: 'districts', paint: { 'fill-color': '#060C0A', 'fill-opacity': ['case', ['boolean', ['feature-state', 'dim'], false], 0.62, 0] } },
-          { id: 'picked', type: 'fill', source: 'districts', paint: { 'fill-color': '#BED180', 'fill-opacity': ['case', ['boolean', ['feature-state', 'picked'], false], 0.3, 0] } },
-          { id: 'lines', type: 'line', source: 'districts', paint: { 'line-color': 'rgba(243,245,233,.5)', 'line-width': 0.8 } },
-          { id: 'hot', type: 'line', source: 'districts', filter: ['==', ['get', 'slug'], ''], paint: { 'line-color': '#BED180', 'line-width': 2.6 } },
-          { id: 'gap', type: 'fill', source: 'districts', filter: ['==', ['get', 'slug'], ''], paint: { 'fill-color': '#050A08', 'fill-opacity': 0.92 } },
+          { id: 'dim', type: 'fill', source: 'districts', paint: { 'fill-color': '#0B2545', 'fill-opacity': ['case', ['boolean', ['feature-state', 'dim'], false], 0.66, 0] } },
+          { id: 'picked', type: 'fill', source: 'districts', paint: { 'fill-color': '#FFFFFF', 'fill-opacity': ['case', ['boolean', ['feature-state', 'picked'], false], 0.3, 0] } },
+          { id: 'lines', type: 'line', source: 'districts', paint: { 'line-color': 'rgba(255,255,255,.5)', 'line-width': 0.8 } },
+          { id: 'hot', type: 'line', source: 'districts', filter: ['==', ['get', 'slug'], ''], paint: { 'line-color': '#FFFFFF', 'line-width': 2.6 } },
+          { id: 'gap', type: 'fill', source: 'districts', filter: ['==', ['get', 'slug'], ''], paint: { 'fill-color': '#071A33', 'fill-opacity': 0.92 } },
           { id: 'route-halo', type: 'line', source: 'route', layout: { 'line-cap': 'round', 'line-join': 'round' }, paint: { 'line-color': '#FF2BD6', 'line-width': 18, 'line-blur': 13, 'line-opacity': 0.4 } },
           { id: 'route-glow', type: 'line', source: 'route', layout: { 'line-cap': 'round', 'line-join': 'round' }, paint: { 'line-color': '#FF2BD6', 'line-width': 7, 'line-blur': 4, 'line-opacity': 0.8 } },
           { id: 'route', type: 'line', source: 'route', layout: { 'line-cap': 'round', 'line-join': 'round' }, paint: { 'line-color': '#FF6FE6', 'line-width': 2.6 } },
@@ -169,7 +186,7 @@
         sources: { dem: terrain(), districts: { type: 'geojson', data: districtsGeo }, loc: { type: 'geojson', data: { type: 'FeatureCollection', features: [] } } },
         terrain: { source: 'dem', exaggeration: EXAG },
         layers: [
-          { id: 'edge', type: 'line', source: 'districts', filter: ['==', ['get', 'slug'], ''], paint: { 'line-color': '#BED180', 'line-width': 2 } },
+          { id: 'edge', type: 'line', source: 'districts', filter: ['==', ['get', 'slug'], ''], paint: { 'line-color': '#FFFFFF', 'line-width': 2 } },
           { id: 'loc-circle', type: 'fill', source: 'loc', paint: { 'fill-color': '#2F9BFF', 'fill-opacity': 0.16 } }
         ]
       } }, Object.assign({}, opts, { maxZoom: 14 })));
@@ -180,7 +197,7 @@
       island.on('data', () => { if (seen.size) { const done = [...seen].length ? island.areTilesLoaded() : false; bump('tiles', done ? 1 : Math.min(0.9, (parts.tiles || 0) + 0.05)); } });
       const go = () => { if (++first < 2) return;
         [island, district].forEach(m => { m.terrain.getMeshFrameDelta = () => SKIRT; }); // short skirts: see spike/matale-lift/README.md
-        setCompactGestures(true);
+        setCompactGestures(true); seaNames();
         island.jumpTo(islandCam()); district.jumpTo(islandCam());
         // The homepage is ready behind the loader, so tiles still arriving should not hold it up.
         island.once('idle', resolve);
@@ -389,12 +406,12 @@
       <div class="m-top">
         <button type="button" class="m-btn" id="m-close">Close map</button>
         <button type="button" class="m-btn m-back" id="m-back" hidden>Back to Sri Lanka</button>
-        <div class="m-mode" role="group" aria-label="Map mode"><button type="button" id="m-explore-mode" aria-pressed="true">Explore</button><button type="button" id="m-plan-mode" aria-pressed="false">Plan My Trip</button></div>
+        <div class="m-mode" role="group" aria-label="Map mode"><button type="button" id="m-explore-mode" aria-pressed="true">Explore</button><button type="button" id="m-plan-mode" aria-pressed="false">Plan my trip</button></div>
       </div>
       <div class="m-bar" role="toolbar" aria-label="Map tools">
         <button type="button" class="m-btn" data-view="districts">Districts</button>
         <button type="button" class="m-btn" data-view="filters">Filters<span id="m-fcount"></span></button>
-        <button type="button" class="m-btn" data-view="trip">My Trip <span class="m-count" id="m-tcount">0</span></button>
+        <button type="button" class="m-btn" data-view="trip">My trip <span class="m-count" id="m-tcount">0</span></button>
         <button type="button" class="m-btn" data-view="location">My location</button>
       </div>
       <div class="m-tip" id="m-tip" hidden></div>
@@ -445,7 +462,7 @@
     if (v === 'trip' && !S.routeOn) liveRoute();
   }
 
-  const placeRow = p => `<li><button type="button" class="m-row${matches(p) ? '' : ' is-faded'}" data-place="${p.id}"><strong>${esc(p.name)}</strong><span>${esc(TYPES[p.types[0]])} · ${esc(p.visit)}</span></button></li>`;
+  const placeRow = p => `<li><button type="button" class="m-row${matches(p) ? '' : ' is-faded'}" data-place="${p.id}"><strong>${esc(p.name)}</strong><span>${esc(p.visit)}</span></button></li>`;
   function viewDistricts() {
     const q = S.query.trim().toLowerCase();
     const ds = meta.filter(m => !q || m.name.toLowerCase().includes(q));
@@ -459,7 +476,7 @@
   }
   function viewPreview() {
     const m = dMeta(S.preview), n = places.filter(p => inDistrict(p, S.preview)).length;
-    return `<h2>${esc(m.name)}</h2><p class="m-note">${n ? `${n} place${n > 1 ? 's' : ''} to explore.` : 'We are still adding places here.'}</p><button type="button" class="button button-moss" data-district="${m.slug}" data-go="1">Explore ${esc(m.name)}</button>`;
+    return `<h2>${esc(m.name)}</h2><p class="m-note">${n ? `${n} place${n > 1 ? 's' : ''} to explore.` : 'We are still adding places here.'}</p><button type="button" class="button button-primary" data-district="${m.slug}" data-go="1">Explore ${esc(m.name)}</button>`;
   }
   function viewDistrict() {
     const m = dMeta(S.slug), all = places.filter(p => p.district === S.slug), shared = places.filter(p => p.district !== S.slug && inDistrict(p, S.slug));
@@ -467,20 +484,25 @@
     const groups = Object.keys(TYPES).map(t => [t, all.filter(p => p.types[0] === t)]).filter(g => g[1].length);
     const mine = listed.filter(l => l.district === S.slug), more = mine.filter(l => l.types[0] !== 'stay'), hotels = mine.filter(l => l.types[0] === 'stay');
     const cats = [...new Set(more.map(l => l.cat))].sort().map(c => [c, more.filter(l => l.cat === c)]);
-    return `<p class="eyebrow">District</p><h2>${esc(m.name)}</h2><p><a class="m-link" href="${asset('districts/' + m.slug + '.html')}">Read the ${esc(m.name)} guide</a></p>
+    needMedia();
+    return `<h2>${esc(m.name)}</h2>${localNames(local.districts[m.slug])}<p><a class="m-link" href="${asset('districts/' + m.slug + '.html')}">Read the ${esc(m.name)} guide</a></p>
       ${all.length ? groups.map(([t, l]) => `<h3>${esc(TYPES[t])}</h3><ul class="m-list">${l.map(placeRow).join('')}</ul>`).join('') : more.length ? `<p class="m-note">We haven't written full guides for ${esc(m.name)} yet.</p>` : `<p class="m-note">We're still adding places in ${esc(m.name)}.</p><h3>Nearby districts</h3><ul class="m-list">${near.map(x => `<li><button type="button" class="m-row" data-district="${x.slug}"><strong>${esc(x.name)}</strong></button></li>`).join('')}</ul>`}
       ${more.length ? `<h3>More places to explore</h3><p class="m-note">Listed places, not yet checked by us. Zoom in to see them all.</p>${cats.map(([c, l]) => `<details class="m-more"><summary>${esc(c)} (${l.length})</summary><ul class="m-list">${l.map(listedRow).join('')}</ul></details>`).join('')}` : ''}
-      ${hotels.length ? `<h3>Hotels</h3><button type="button" class="button button-ghost button-sm" data-hotels="1">${S.hotels ? 'Hide hotels on the map' : `Show ${hotels.length} hotels on the map`}</button><details class="m-more"><summary>All hotels (${hotels.length})</summary><ul class="m-list">${hotels.map(listedRow).join('')}</ul></details>` : ''}
+      ${hotels.length ? `<h3>Hotels</h3><button type="button" class="button button-secondary button-sm" data-hotels="1">${S.hotels ? 'Hide hotels on the map' : `Show ${hotels.length} hotels on the map`}</button><details class="m-more"><summary>All hotels (${hotels.length})</summary><ul class="m-list">${hotels.map(listedRow).join('')}</ul></details>` : ''}
       ${shared.length ? `<h3>Shared with nearby districts</h3><ul class="m-list">${shared.map(p => `<li><button type="button" class="m-row" data-place="${p.id}"><strong>${esc(p.name)}</strong><span>Mostly in ${esc(dMeta(p.district).name)}</span></button></li>`).join('')}</ul>` : ''}`;
   }
   const listedRow = p => `<li><button type="button" class="m-row" data-place="${p.id}" data-district="${p.district}"><strong>${esc(p.name)}</strong></button></li>`;
   function viewCluster() { return `<button type="button" class="m-link" data-view-go="district">All places in ${esc(dMeta(S.slug).name)}</button><h2>Places here</h2><ul class="m-list">${S.cluster.map(byId).map(listedRow).join('')}</ul>`; }
   // Photos and links for the panels load after the map, so they never slow the first view.
-  let media = null, mediaReady = null;
+  let media = null, mediaReady = null, local = { places: {}, districts: {} };
   function needMedia() {
-    if (!mediaReady) mediaReady = fetch(asset('assets/map/media.json')).then(r => r.json()).then(m => { media = m; if (S.view === 'place') setView('place'); }).catch(() => { mediaReady = null; });
+    if (!mediaReady) mediaReady = Promise.all(['media', 'names'].map(f => fetch(asset(`assets/map/${f}.json`)).then(r => r.json()))).then(([m, n]) => {
+      media = m; local = n;
+      if (S.view === 'place' || S.view === 'district') { const hold = $('m-body').scrollTop; setView(S.view); $('m-body').scrollTop = hold; }
+    }).catch(() => { mediaReady = null; });
     return mediaReady;
   }
+  const localNames = o => (o && (o.si || o.ta) ? `<p class="names">${o.si ? `<span lang="si">${esc(o.si)}</span>` : ''}${o.ta ? `<span lang="ta">${esc(o.ta)}</span>` : ''}</p>` : '');
   const photoBlock = (src, alt, m) => `<figure class="m-photo"><img src="${asset(src)}" alt="${esc(alt)}" decoding="async">${m ? `<figcaption><a href="${esc(m.u)}" target="_blank" rel="noopener">${esc(m.c)}</a></figcaption>` : ''}</figure>`;
   function placePhoto(p) {
     const m = media && media.places[p.id];
@@ -495,8 +517,8 @@
     needMedia();
     const hotel = p.types[0] === 'stay', water = /Waterfall|Lake|Pond|Beach/.test(p.cat), added = trip.stops.includes(p.id), a = p.road && byId(p.road.anchor);
     return `<button type="button" class="m-link" data-view-go="${S.lifted ? 'district' : 'districts'}">All places in ${esc(dMeta(p.district).name)}</button>
-      <p class="eyebrow">${esc(p.cat)} · Listed place</p><h2>${esc(p.name)}</h2><p class="m-sub">${esc(dMeta(p.district).name)} District</p>${listedPhoto(p)}
-      <div class="m-actions">${!hotel && p.road ? `<button type="button" class="button button-moss" data-add="${p.id}">${added ? 'Added. Undo' : 'Add to My Trip'}</button>` : ''}<a class="button button-ghost" href="https://www.google.com/maps/dir/?api=1&destination=${p.lat},${p.lon}" target="_blank" rel="noopener">Get Directions</a></div>
+      <h2>${esc(p.name)}</h2><p class="m-kind">${esc(p.cat)}. Listed place.</p><p class="m-sub">${esc(dMeta(p.district).name)} District</p>${listedPhoto(p)}
+      <div class="m-actions">${!hotel && p.road ? `<button type="button" class="button button-primary" data-add="${p.id}">${added ? 'Added. Undo' : 'Add to my trip'}</button>` : ''}<a class="button button-secondary" href="https://www.google.com/maps/dir/?api=1&destination=${p.lat},${p.lon}" target="_blank" rel="noopener">Get directions</a></div>
       <p class="m-hint">Not checked by us. Access, opening hours, fees and conditions are not confirmed, so ask locally before you go.</p>
       ${water ? '<p class="m-note">This listing does not mean swimming or boating is safe or allowed here.</p>' : ''}
       ${hotel ? `<dl class="m-dl"><div><dt>Official class</dt><dd>${p.star ? esc(p.star) + ' star class, Sri Lanka Tourism directory' : 'Not on record here'}</dd></div><div><dt>Rates and rooms</dt><dd>Not checked</dd></div></dl><p class="m-note">Not a Ceylonways partner. The planner's prices use sample stays, not this hotel.</p>` : ''}
@@ -531,12 +553,12 @@
     const month = S.filters.month !== '' ? Number(S.filters.month) : new Date().getMonth();
     const seas = { good: 'Usually good', mixed: 'Mixed', wet: 'Often wet' }[CW.seasons[p.region][month]];
     return `<button type="button" class="m-link" data-view-go="${S.lifted ? 'district' : 'districts'}">All places in ${esc(dMeta(p.district).name)}</button>
-      <p class="eyebrow">${esc(p.types.map(t => TYPES[t]).join(' · '))}</p><h2>${esc(p.name)}</h2>
-      <p class="m-sub">${esc(dMeta(p.district).name)} District${(p.also || []).length ? `, also in ${esc(p.also.map(a => dMeta(a).name).join(', '))}` : ''}</p>
+      <h2>${esc(p.name)}</h2>${localNames(local.places[p.id])}
+      <p class="m-sub">${esc(p.types.map((t, i) => (i ? TYPES[t].toLowerCase() : TYPES[t])).join(', '))}. In ${esc(dMeta(p.district).name)} District${(p.also || []).length ? `, also in ${esc(p.also.map(a => dMeta(a).name).join(', '))}` : ''}</p>
       ${placePhoto(p)}
-      <div class="m-actions"><button type="button" class="button button-moss" data-add="${p.id}">${added ? 'Added. Undo' : 'Add to My Trip'}</button>${pk.length ? `<a class="button button-ghost" href="#m-pk-${p.id}">View Packages</a>` : ''}<a class="button button-ghost" href="https://www.google.com/maps/dir/?api=1&destination=${p.lat},${p.lon}" target="_blank" rel="noopener">Get Directions</a></div>
+      <div class="m-actions"><button type="button" class="button button-primary" data-add="${p.id}">${added ? 'Added. Undo' : 'Add to my trip'}</button>${pk.length ? `<a class="button button-secondary" href="#m-pk-${p.id}">View packages</a>` : ''}<a class="button button-secondary" href="https://www.google.com/maps/dir/?api=1&destination=${p.lat},${p.lon}" target="_blank" rel="noopener">Get directions</a></div>
       <p>${esc(p.overview)}</p><p class="m-why"><strong>Why go.</strong> ${esc(p.why)}</p>
-      ${acts.length ? `<h3>Things to do</h3><ul class="m-facts">${acts.map(a => `<li><strong>${esc(a.name)}</strong><span>${a.hours} h · ${esc(a.when)}${a.adult ? ` · about ${E.money(a.adult, 'USD')} per adult, sample price` : ' · free'}</span></li>`).join('')}</ul>` : ''}
+      ${acts.length ? `<h3>Things to do</h3><ul class="m-facts">${acts.map(a => `<li><strong>${esc(a.name)}</strong><span>${a.hours} h, ${esc(a.when)}${a.adult ? `, about ${E.money(a.adult, 'USD')} per adult, sample price` : ', free'}</span></li>`).join('')}</ul>` : ''}
       <h3>Getting there</h3><p>${esc(p.access)}</p>
       <h3>Plan your visit</h3><dl class="m-dl"><div><dt>Suggested time</dt><dd>${esc(p.visit)}</dd></div><div><dt>Opening hours</dt><dd>Not confirmed yet</dd></div><div><dt>Entry fees</dt><dd>Not confirmed yet</dd></div><div><dt>${esc(MONTHS[month])}</dt><dd>${seas}. Typical conditions, not a forecast.</dd></div></dl>
       <h3>Good to know</h3><dl class="m-dl"><div><dt>Walking</dt><dd>${esc(p.walk)}</dd></div><div><dt>What to wear</dt><dd>${esc(p.dress)}</dd></div><div><dt>Accessibility, facilities</dt><dd>Not confirmed yet</dd></div></dl>
@@ -565,7 +587,7 @@
       <h3>Experience</h3><div class="m-chips">${Object.entries(TYPES).map(([k, l]) => chip('types', k, l)).join('')}</div>
       <h3>Travel month</h3><label class="m-field"><span class="visually-hidden">Travel month</span><select id="m-month"><option value="">Any month</option>${MONTHS.map((m, i) => `<option value="${i}"${String(i) === String(f.month) ? ' selected' : ''}>${m}</option>`).join('')}</select></label>
       <p class="m-note">Month shows typical conditions by local climate, not live weather. Districts with no match go dark but stay selectable.</p>
-      <button type="button" class="button button-ghost" data-clear-filters="1">Clear filters</button>`;
+      <button type="button" class="button button-secondary" data-clear-filters="1">Clear filters</button>`;
   }
 
   /* ---------- Trip ---------- */
@@ -580,7 +602,7 @@
     const i = trip.stops.indexOf(id), p = byId(id);
     if (i < 0) { trip.stops.push(id); if (!trip.districts.includes(p.district)) trip.districts.push(p.district); } else trip.stops.splice(i, 1);
     saveTrip(); counts(); clearRoute(false);
-    announce(i < 0 ? `${p.name} added to My Trip.` : `${p.name} removed.`);
+    announce(i < 0 ? `${p.name} added to My trip.` : `${p.name} removed.`);
     if (S.view === 'place' || S.view === 'trip') { const hold = S.place; setView(S.view); S.place = hold; }
     liveRoute();
   }
@@ -588,8 +610,8 @@
     const stops = trip.stops.map(byId).filter(Boolean);
     const empty = trip.districts.filter(d => !stops.some(s => s.district === d));
     const starts = [...hubs, ...places].map(o => `<option value="${o.id}"${o.id === trip.start ? ' selected' : ''}>${esc(o.name)}</option>`).join('');
-    return `<h2>My Trip</h2>
-      ${trip.districts.length ? `<p class="m-note">${trip.districts.length} district${trip.districts.length > 1 ? 's' : ''}, ${stops.length} stop${stops.length === 1 ? '' : 's'}: ${esc(trip.districts.map(d => dMeta(d).name).join(', '))}</p>` : '<p class="m-note">Switch to Plan My Trip and tap districts, or add places as you explore.</p>'}
+    return `<h2>My trip</h2>
+      ${trip.districts.length ? `<p class="m-note">${trip.districts.length} district${trip.districts.length > 1 ? 's' : ''}, ${stops.length} stop${stops.length === 1 ? '' : 's'}: ${esc(trip.districts.map(d => dMeta(d).name).join(', '))}</p>` : '<p class="m-note">Switch to Plan my trip and tap districts, or add places as you explore.</p>'}
       ${empty.map(d => `<p class="m-hint">Add a stop in ${esc(dMeta(d).name)}, or <button type="button" class="m-inline" data-suggest="${d}">let us suggest one</button>.</p>`).join('')}
       ${stops.length ? `<ol class="m-stops">${stops.map((s, i) => `<li><span>${esc(s.name)}</span><span class="m-stop-tools"><button type="button" data-move="${i}" data-d="-1" aria-label="Move ${esc(s.name)} earlier"${i ? '' : ' disabled'}>Earlier</button><button type="button" data-move="${i}" data-d="1" aria-label="Move ${esc(s.name)} later"${i < stops.length - 1 ? '' : ' disabled'}>Later</button><button type="button" data-add="${s.id}" aria-label="Remove ${esc(s.name)}">Remove</button></span></li>`).join('')}</ol>` : ''}
       <h3>Your details</h3>
@@ -598,7 +620,7 @@
       <label class="m-field">How many days do you have?<input type="number" id="m-days" min="1" max="30" value="${trip.days}"></label>
       <label class="m-field">How will you travel?<select id="m-vehicle"><option value="car"${trip.vehicle === 'car' ? ' selected' : ''}>Private car and driver</option><option value="van"${trip.vehicle === 'van' ? ' selected' : ''}>Private van and driver</option></select></label>
       <label class="m-field">Travel pace<select id="m-pace">${Object.keys(PACE).map(k => `<option value="${k}"${trip.pace === k ? ' selected' : ''}>${CW.config.pace[k].label}</option>`).join('')}</select></label>
-      <button type="button" class="button button-moss" data-build="1"${stops.length ? '' : ' disabled'}>Build my route</button>
+      <button type="button" class="button button-primary" data-build="1"${stops.length ? '' : ' disabled'}>Build my route</button>
       ${trip.manual ? '<button type="button" class="m-inline" data-auto="1">Use the suggested order again</button>' : ''}
       <div id="m-itin"></div>`;
   }
@@ -671,7 +693,7 @@
     const out = () => $('m-itin');
     if (S.lifted) await unlift();
     setView('trip'); out().innerHTML = '<p class="m-note">Finding road routes…</p>';
-    try { await Promise.all([needRoutes(), needListings()]); } catch (e) { out().innerHTML = `<p class="m-note">We couldn't get a road route. Please try again.</p><button type="button" class="button button-ghost" data-build="1">Try Again</button>`; return; }
+    try { await Promise.all([needRoutes(), needListings()]); } catch (e) { out().innerHTML = `<p class="m-note">We couldn't get a road route. Please try again.</p><button type="button" class="button button-secondary" data-build="1">Try again</button>`; return; }
     const it = makeItinerary();
     if (!it) { out().innerHTML = "<p class=\"m-note\">We couldn't get a road route. Please try again.</p>"; return; }
     setView('trip');
@@ -679,9 +701,9 @@
     $('m-itin').innerHTML = `<h3>Your route</h3>
       <p class="m-total"><strong>${Math.round(it.km)} km</strong> on the road, about <strong>${fmtMin(it.min)}</strong> of driving, ${it.days.length} day${it.days.length > 1 ? 's' : ''}</p>
       ${over > 0 ? `<p class="m-hint">This needs ${it.days.length} days at a ${trip.pace} pace, and you have ${trip.days}. Remove a stop or add days.</p>` : over < 0 ? `<p class="m-note">${-over} spare day${over < -1 ? 's' : ''} for rest, or add more stops.</p>` : ''}
-      ${it.days.map(d => `<div class="m-day"><p class="eyebrow">Day ${d.n}</p>${d.items.map(l => { const s = byId(l.b); return `<p><strong>${esc(s.name)}</strong><span>Drive ${Math.round(l.km)} km, about ${fmtMin(l.min)}${s.hub ? '' : ` · Time here: ${esc(s.visit.toLowerCase())}`}</span></p>`; }).join('')}</div>`).join('')}
+      ${it.days.map(d => `<div class="m-day"><p class="m-day-no">Day ${d.n}</p>${d.items.map(l => { const s = byId(l.b); return `<p><strong>${esc(s.name)}</strong><span>Drive ${Math.round(l.km)} km, about ${fmtMin(l.min)}${s.hub ? '' : `. Time here: ${esc(s.visit.toLowerCase())}`}</span></p>`; }).join('')}</div>`).join('')}
       <p class="m-source">Road routes from OpenStreetMap, worked out in advance. Drive times are estimates and can run longer in the hills.</p>
-      <a class="button button-moss" href="${asset('plan.html')}#plan=${planLink(it)}">See the cost and stays</a>
+      <a class="button button-primary" href="${asset('plan.html')}#plan=${planLink(it)}">See the cost and stays</a>
       <h3>Closest packages</h3><ul class="m-list">${closestPackages().map(k => `<li><a class="m-row" href="${asset('packages/' + k.p.slug + '.html')}"><strong>${esc(k.p.name)}</strong><span>${k.n} of your stops. ${k.p.days} days. Sample price.</span></a></li>`).join('')}</ul>`;
     drawRoute(it);
     $('m-itin').scrollIntoView({ block: 'start', behavior: reduce ? 'auto' : 'smooth' });
@@ -769,11 +791,11 @@
   /* ---------- Live Location: consent, permission, then a geographic check ---------- */
   function viewLocation() {
     const nearby = () => places.map(p => ({ p, d: km(loc, p) })).sort((a, b) => a.d - b.d).slice(0, 5);
-    const retry = '<button type="button" class="button button-moss" data-loc="yes">Try Again</button>';
+    const retry = '<button type="button" class="button button-primary" data-loc="yes">Try again</button>';
     const rough = loc.rough >= 1000 ? `${Math.round(loc.rough / 1000)} km` : `${Math.round(loc.rough)} m`;
     const pick = `<label class="m-field">Or choose where you are<select id="m-here-pick"><option value="">Choose a place</option>${places.slice().sort((a, b) => a.name.localeCompare(b.name)).map(p => `<option value="${p.id}">${esc(p.name)}</option>`).join('')}</select></label>`;
     const msgs = {
-      off: `<h2>My location</h2><p>Are you currently in Sri Lanka?</p><div class="m-actions"><button type="button" class="button button-moss" data-loc="yes">Yes, show my location</button><button type="button" class="button button-ghost" data-loc="no">No</button></div><p class="m-source">Your position stays in this browser. It is never saved or sent to us.</p>`,
+      off: `<h2>My location</h2><p>Are you currently in Sri Lanka?</p><div class="m-actions"><button type="button" class="button button-primary" data-loc="yes">Yes, show my location</button><button type="button" class="button button-secondary" data-loc="no">No</button></div><p class="m-source">Your position stays in this browser. It is never saved or sent to us.</p>`,
       asking: `<h2>My location</h2><p class="m-note">${loc.rough ? `Getting a closer position. So far it is accurate to about ${rough}.` : 'Waiting for your browser…'}</p>${loc.rough ? pick : ''}`,
       no: '<h2>My location</h2><p class="m-note">No problem. You can explore and plan your trip by hand.</p>',
       outside: '<h2>My location</h2><p>Live Location is available only while you are in Sri Lanka. You can still explore destinations and plan your trip.</p>',
@@ -785,9 +807,9 @@
     if (loc.state !== 'on') return msgs[loc.state];
     const list = nearby();
     return `<h2>${loc.picked ? `Near ${esc(loc.picked)}` : 'You are here'}</h2><p class="m-note">${loc.picked ? 'You chose this place. Your device is not sharing a position' : `Accurate to about ${Math.round(loc.acc)} m${Date.now() - loc.last > 15000 ? '. Updating' : ''}`}.</p>
-      <button type="button" class="button button-ghost" data-loc="stop">${loc.picked ? 'Clear this place' : 'Stop sharing my location'}</button>
+      <button type="button" class="button button-secondary" data-loc="stop">${loc.picked ? 'Clear this place' : 'Stop sharing my location'}</button>
       <h3>Nearby</h3><ul class="m-list">${list.map(n => `<li><button type="button" class="m-row" data-place="${n.p.id}" data-district="${n.p.district}"><strong>${esc(n.p.name)}</strong><span>${n.d < 1 ? 'Less than 1 km away' : `About ${n.d < 10 ? n.d.toFixed(1) : Math.round(n.d)} km away`} in a straight line</span></button></li>`).join('')}</ul>
-      <button type="button" class="button button-moss" data-loc="start" data-near="${list[0].p.id}">Start my trip here</button>
+      <button type="button" class="button button-primary" data-loc="start" data-near="${list[0].p.id}">Start my trip here</button>
       <p class="m-source">Routes begin at your closest listed place, ${esc(list[0].p.name)}, because roads are worked out in advance.</p>`;
   }
   function inRing(lon, lat, r) { let c = false; for (let i = 0, j = r.length - 1; i < r.length; j = i++) { const [xi, yi] = r[i], [xj, yj] = r[j]; if ((yi > lat) !== (yj > lat) && lon < (xj - xi) * (lat - yi) / (yj - yi) + xi) c = !c; } return c; }

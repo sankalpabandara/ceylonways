@@ -287,8 +287,8 @@
   ];
 
   const packageGroups = {
-    five: '5 Day Escapes', seven: '7 Day Highlights', long: '10 to 14 Day Journeys',
-    honeymoon: 'Honeymoon', family: 'Family', budget: 'Budget Friendly', first: 'First Trip', coast: 'Coast', nature: 'Nature'
+    five: '5 day escapes', seven: '7 day highlights', long: '10 to 14 day journeys',
+    honeymoon: 'Honeymoon', family: 'Family', budget: 'Budget friendly', first: 'First trip', coast: 'Coast', nature: 'Nature'
   };
 
   // Simplified coastline [lon, lat] for the schematic map. Not for navigation.

@@ -96,14 +96,14 @@
   host.innerHTML = `
   <div class="planner-grid">
     <div class="planner-main">
-      <section class="setup glass-strong panel" aria-labelledby="setup-title">
+      <section class="setup box panel" aria-labelledby="setup-title">
         <details id="setup-details" open>
           <summary><div><h2 id="setup-title">Your trip details</h2><p class="setup-summary" id="setup-summary"></p></div></summary>
           <div class="form-grid" id="setup-form"></div>
         </details>
       </section>
       <div class="notices" id="notices" aria-live="polite"></div>
-      <section id="suggest-section" class="glass-strong panel" aria-labelledby="suggest-title">
+      <section id="suggest-section" class="box panel" aria-labelledby="suggest-title">
         <div class="p-section-title"><h2 id="suggest-title">Ways to save</h2><span class="badge badge-sample">Based on sample rates</span></div>
         <div id="suggestions"></div>
       </section>
@@ -117,9 +117,9 @@
           </div>
         </div>
         <div class="stops" id="stops"></div>
-        <div class="elsewhere glass-strong panel" id="elsewhere"></div>
+        <div class="elsewhere box panel" id="elsewhere"></div>
       </section>
-      <section class="quote glass-strong panel" aria-labelledby="quote-title" id="quote">
+      <section class="quote box panel" aria-labelledby="quote-title" id="quote">
         <div class="p-section-title"><h2 id="quote-title">Request a confirmed quote</h2></div>
         <p>When you are happy with the plan, ask for a quote. A person checks every hotel, driver and ticket for your dates and sends back a confirmed price. You only book after that.</p>
         <form class="quote-form" id="quote-form" novalidate>
@@ -129,14 +129,14 @@
           <label class="field">Best way to reach you<select name="contact"><option>Email</option><option>WhatsApp</option><option>Phone call</option></select></label>
           <label class="check field-wide"><input type="checkbox" name="flexible"> My dates are flexible by a few days</label>
           <label class="field field-wide">Anything else we should know<textarea name="message" maxlength="2000"></textarea></label>
-          <div class="field-wide"><button class="button button-moss" type="submit">Prepare my request</button></div>
+          <div class="field-wide"><button class="button button-primary" type="submit">Prepare my request</button></div>
         </form>
         <div class="quote-out" id="quote-out" aria-live="polite"></div>
       </section>
     </div>
     <aside class="planner-side" aria-label="Trip summary">
-      <section class="summary glass-strong" id="summary"></section>
-      <section class="summary glass-strong" id="saved" aria-labelledby="saved-title"><h2 class="h3" id="saved-title">Saved trips</h2><div id="saved-list"></div></section>
+      <section class="summary box" id="summary"></section>
+      <section class="summary box" id="saved" aria-labelledby="saved-title"><h2 class="h3" id="saved-title">Saved trips</h2><div id="saved-list"></div></section>
     </aside>
   </div>
   <div class="mobile-total" id="mobile-total"></div>
@@ -219,7 +219,7 @@
     rs.innerHTML = opt(0, `Choose for us (${min} room${min > 1 ? 's' : ''})`, !plan.rooms) + [0, 1, 2].map(n => opt(min + n, `${min + n} room${min + n > 1 ? 's' : ''}`, plan.rooms === min + n)).join('');
     const lastDay = c.days[c.days.length - 1].date;
     $('dep-hint').textContent = lastDay ? `This itinerary leaves on ${fmtDate(lastDay)}.` : 'Leave empty to follow the itinerary.';
-    $('setup-summary').textContent = `${pkgBySlug[plan.pkg].name} · ${plan.arrival ? fmtLong(plan.arrival) : 'No dates yet'} · ${plan.adults} adult${plan.adults > 1 ? 's' : ''}${plan.kids.length ? `, ${plan.kids.length} child${plan.kids.length > 1 ? 'ren' : ''}` : ''} · ${plan.budget ? money(plan.budget / config.currencies[plan.currency].rate) + ' budget' : 'No budget set'}`;
+    $('setup-summary').textContent = `${pkgBySlug[plan.pkg].name}. ${plan.arrival ? fmtLong(plan.arrival) : 'No dates yet'}. ${plan.adults} adult${plan.adults > 1 ? 's' : ''}${plan.kids.length ? `, ${plan.kids.length} child${plan.kids.length > 1 ? 'ren' : ''}` : ''}. ${plan.budget ? money(plan.budget / config.currencies[plan.currency].rate) + ' budget' : 'No budget set'}`;
     $('undo-btn').disabled = !past.length; $('redo-btn').disabled = !future.length;
     renderNotices(c); renderSuggestions(c); renderStops(c); renderElsewhere(); renderSummary(c); renderSaved();
   }
@@ -227,12 +227,12 @@
   function renderNotices(c) {
     const out = []; const money = n => E.money(n, plan.currency);
     c.warnings.forEach(w => {
-      if (w.kind === 'dates') out.push(`<div class="notice notice-warn"><span>${w.text}</span><button type="button" class="button button-sm button-moss" data-action="fit-dates" data-want="${w.want}">Fit the itinerary to ${w.want} nights</button><button type="button" class="button button-sm button-ghost" data-action="match-departure">Use the itinerary's dates</button></div>`);
+      if (w.kind === 'dates') out.push(`<div class="notice notice-warn"><span>${w.text}</span><button type="button" class="button button-sm button-primary" data-action="fit-dates" data-want="${w.want}">Fit the itinerary to ${w.want} nights</button><button type="button" class="button button-sm button-secondary" data-action="match-departure">Use the itinerary's dates</button></div>`);
       if (w.kind === 'nodate') out.push(`<div class="notice notice-info"><span>${w.text}</span></div>`);
     });
     c.ruleGaps.filter(b => !dismissed.has('gap:' + b + plan.rule.minRating + plan.rule.minReviews)).forEach(b => {
       const broader = broaderRule(b);
-      out.push(`<div class="notice notice-warn"><span>No stay in ${bases[b].short} meets your rule (${plan.rule.minRating.toFixed(1)} or higher with ${plan.rule.minReviews}+ reviews) in our sample list. The current stay there is marked below your rule.</span>${broader ? `<button type="button" class="button button-sm button-moss" data-action="broaden" data-r="${broader.minRating}" data-n="${broader.minReviews}">Widen to ${broader.minRating.toFixed(1)}+ with ${broader.minReviews}+ reviews</button>` : ''}<button type="button" class="button button-sm button-ghost" data-action="keep-rule" data-key="gap:${b}${plan.rule.minRating}${plan.rule.minReviews}">Keep my rule</button></div>`);
+      out.push(`<div class="notice notice-warn"><span>No stay in ${bases[b].short} meets your rule (${plan.rule.minRating.toFixed(1)} or higher with ${plan.rule.minReviews}+ reviews) in our sample list. The current stay there is marked below your rule.</span>${broader ? `<button type="button" class="button button-sm button-primary" data-action="broaden" data-r="${broader.minRating}" data-n="${broader.minReviews}">Widen to ${broader.minRating.toFixed(1)}+ with ${broader.minReviews}+ reviews</button>` : ''}<button type="button" class="button button-sm button-secondary" data-action="keep-rule" data-key="gap:${b}${plan.rule.minRating}${plan.rule.minReviews}">Keep my rule</button></div>`);
     });
     if (c.party.pax > 8) out.push(`<div class="notice notice-warn"><span>Groups over 8 need two vehicles or a small bus. The estimate uses one van. We will price this properly in your quote.</span></div>`);
     if (!plan.budget) out.push(`<div class="notice notice-info"><span>Add a total budget in your trip details to see whether this plan fits.</span></div>`);
@@ -259,28 +259,28 @@
       const cheapest = E.cheapestVersion(plan);
       const gap = -c.remaining;
       if (cheapest.calc.total > c.groundBudget) {
-        head = `<div class="notice notice-bad"><span><strong>This route cannot fit your budget.</strong> Even with the lowest priced stays that meet your rule, the shortest stays in each place, transfers only and no paid activities, it costs about ${money(cheapest.calc.total)}. That is ${money(cheapest.calc.total - c.groundBudget)} more than your ${plan.budgetIncludesFlights ? 'budget after flights' : 'budget'}. Realistic options: a shorter trip with fewer places, travelling outside the busy season, widening your rating rule, or raising the budget.</span><button type="button" class="button button-sm button-ghost" data-action="try-package" data-slug="budget-sri-lanka-7-days">Try the budget package</button><button type="button" class="button button-sm button-ghost" data-action="set-budget" data-v="${Math.ceil(cheapest.calc.total * config.currencies[plan.currency].rate / 50) * 50 + (plan.budgetIncludesFlights ? plan.flightsPerPerson * c.party.pax : 0)}">Set budget to the lowest version</button></div>`;
+        head = `<div class="notice notice-bad"><span><strong>This route cannot fit your budget.</strong> Even with the lowest priced stays that meet your rule, the shortest stays in each place, transfers only and no paid activities, it costs about ${money(cheapest.calc.total)}. That is ${money(cheapest.calc.total - c.groundBudget)} more than your ${plan.budgetIncludesFlights ? 'budget after flights' : 'budget'}. Realistic options: a shorter trip with fewer places, travelling outside the busy season, widening your rating rule, or raising the budget.</span><button type="button" class="button button-sm button-secondary" data-action="try-package" data-slug="budget-sri-lanka-7-days">Try the budget package</button><button type="button" class="button button-sm button-secondary" data-action="set-budget" data-v="${Math.ceil(cheapest.calc.total * config.currencies[plan.currency].rate / 50) * 50 + (plan.budgetIncludesFlights ? plan.flightsPerPerson * c.party.pax : 0)}">Set budget to the lowest version</button></div>`;
       } else {
-        head = `<div class="notice notice-warn"><span>You are <strong>${money(gap)}</strong> over your budget. The lowest version of this route that keeps your rule costs about ${money(cheapest.calc.total)}. The changes below bring you closer. Nothing changes until you apply it.</span><button type="button" class="button button-sm button-ghost" data-action="preview-cheapest">See the lowest version</button></div>`;
+        head = `<div class="notice notice-warn"><span>You are <strong>${money(gap)}</strong> over your budget. The lowest version of this route that keeps your rule costs about ${money(cheapest.calc.total)}. The changes below bring you closer. Nothing changes until you apply it.</span><button type="button" class="button button-sm button-secondary" data-action="preview-cheapest">See the lowest version</button></div>`;
       }
     } else if (plan.budget) {
       head = `<div class="notice notice-good"><span>Your plan fits your budget with ${money(c.remaining)} to spare. Here are ways to spend less anyway.</span></div>`;
     }
-    const card = (s, i) => `<article class="sugg glass-strong">
+    const card = (s, i) => `<article class="sugg box">
       <div class="sugg-top"><div><p class="sugg-kind">${{ stay: 'Alternative stay', offer: 'Offer for your dates', route: 'Shorter route', activity: 'Optional experience', transport: 'Transport', nights: 'Shorter stay' }[s.kind]}</p><h3>${esc(s.title)}</h3></div>
         <p class="save-amt">Save ${money(s.saving)}<small>for your group</small></p></div>
       <p class="before-after"><span>Trip total</span> <s>${money(s.before)}</s> <span aria-hidden="true">→</span> <b>${money(s.after)}</b>${plan.budget ? ` <span class="badge ${c.groundBudget - s.after >= 0 ? 'badge-good' : 'badge-bad'}">${c.groundBudget - s.after >= 0 ? 'Within budget' : 'Still over budget'}</span>` : ''}</p>
       <details><summary>What changes</summary><ul>${s.details.map(d => `<li>${esc(d)}</li>`).join('')}</ul></details>
       ${s.why.length ? `<p class="why">Why we suggest this: ${esc(s.why.join(' '))}</p>` : ''}
-      <div class="sugg-actions"><button type="button" class="button button-sm button-moss" data-action="apply-sugg" data-i="${i}">Apply this change</button>${s.kind === 'stay' || s.kind === 'offer' ? `<button type="button" class="button button-sm button-ghost" data-action="stays" data-i="${plan.stops.findIndex((st, k) => st.stay !== s.plan.stops[k].stay)}">Compare all stays here</button>` : ''}</div>
+      <div class="sugg-actions"><button type="button" class="button button-sm button-primary" data-action="apply-sugg" data-i="${i}">Apply this change</button>${s.kind === 'stay' || s.kind === 'offer' ? `<button type="button" class="button button-sm button-secondary" data-action="stays" data-i="${plan.stops.findIndex((st, k) => st.stay !== s.plan.stops[k].stay)}">Compare all stays here</button>` : ''}</div>
     </article>`;
     const top = list.slice(0, 3); const rest = list.slice(3);
-    $('suggestions').innerHTML = head + (list.length ? `<div class="sugg-list">${top.map(card).join('')}</div>${rest.length ? `<details class="more-sugg"><summary class="link-arrow">Show ${rest.length} more ways to save</summary><div class="sugg-list">${rest.map((s, i) => card(s, i + 3)).join('')}</div></details>` : ''}` : `<p class="muted">No cheaper options keep your rating rule and route. Try widening the rule, or a simpler stay style.</p>`);
+    $('suggestions').innerHTML = head + (list.length ? `<div class="sugg-list">${top.map(card).join('')}</div>${rest.length ? `<details class="more-sugg"><summary class="link">Show ${rest.length} more ways to save</summary><div class="sugg-list">${rest.map((s, i) => card(s, i + 3)).join('')}</div></details>` : ''}` : `<p class="muted">No cheaper options keep your rating rule and route. Try widening the rule, or a simpler stay style.</p>`);
   }
 
   function badgeRow(stay, calcStop) {
     const b = [`<span class="badge badge-sample">Sample stay</span>`];
-    b.push(`<span class="badge ${E.meetsRule(stay, plan.rule) ? 'badge-good' : 'badge-bad'}">Sample rating ${stay.rating.toFixed(1)} of 5 · ${stay.reviews.toLocaleString('en-US')} reviews</span>`);
+    b.push(`<span class="badge ${E.meetsRule(stay, plan.rule) ? 'badge-good' : 'badge-bad'}">Sample rating ${stay.rating.toFixed(1)} of 5, ${stay.reviews.toLocaleString('en-US')} reviews</span>`);
     if (stay.reviews < config.smallSample) b.push(`<span class="badge">Small review sample</span>`);
     b.push(`<span class="badge">${stay.stars ? `${stay.stars} star class` : 'No star class'}</span>`);
     b.push(`<span class="badge">${esc(stay.meals)}</span>`);
@@ -299,7 +299,7 @@
         const trainHere = trains[`${leg.from}>${leg.to}`];
         legHtml = `<p class="pday-leg">${leg.mode === 'train' ? `Scenic train from ${from} to ${to}, about ${E.fmtHours(leg.hours)}. Your bags go by road.` : `Drive from ${from} to ${to}, about ${E.fmtHours(leg.hours)}, ${leg.km} km.`}${trainHere && !d.departure ? ` <button type="button" class="icon-btn" data-action="toggle-train" data-i="${d.stopIndex}">${leg.mode === 'train' ? 'Go by road instead' : 'Take the train instead'}</button>` : ''}</p>`;
       }
-      const actLi = (id, stop, pre) => { const a = E.actById[id]; const cost = a.adult * c.party.adultPriced + a.child * c.party.childPriced; return `<li><span>${pre ? `<span class="act-meta">Before you leave ${esc(bases[plan.stops[stop].base].short)}: </span>` : ''}${esc(a.name)}<span class="act-meta"> · ${a.hours} h · ${esc(a.when)} · ${cost ? money(cost) : 'Free'}</span></span><button type="button" class="icon-btn" data-action="remove-act" data-i="${stop}" data-id="${id}" aria-label="Remove ${esc(a.name)}">Remove</button></li>`; };
+      const actLi = (id, stop, pre) => { const a = E.actById[id]; const cost = a.adult * c.party.adultPriced + a.child * c.party.childPriced; return `<li><span>${pre ? `<span class="act-meta">Before you leave ${esc(bases[plan.stops[stop].base].short)}: </span>` : ''}${esc(a.name)}<span class="act-meta">, ${a.hours} h, ${esc(a.when)}, ${cost ? money(cost) : 'free'}</span></span><button type="button" class="icon-btn" data-action="remove-act" data-i="${stop}" data-id="${id}" aria-label="Remove ${esc(a.name)}">Remove</button></li>`; };
       const acts = d.acts.map(id => actLi(id, d.stopIndex, false)).join('');
       const pct = Math.min(100, d.used / pace.hoursPerDay * 100);
       return `<li class="pday"><p class="pday-label">Day ${d.index + 1}<small>${d.date ? fmtDate(d.date) : ''}</small></p><div>
@@ -314,8 +314,8 @@
       const info = c.stopInfo[i]; const stay = info.stay; const days = c.days.filter(d => d.stopIndex === i && !d.departure);
       const first = days[0]; const last = days[days.length - 1];
       const here = activities.filter(a => a.base === s.base).sort((a, b) => (plan.interests.includes(b.type) - plan.interests.includes(a.type)));
-      return `<article class="stop glass-strong" aria-labelledby="stop-${i}">
-        <div class="stop-head"><div><h3 id="stop-${i}">${esc(bases[s.base].name)}</h3><p class="stop-meta">${s.nights} night${s.nights > 1 ? 's' : ''} · Day ${first.index + 1}${s.nights > 1 ? ` to ${last.index + 1}` : ''}${first.date ? ` · ${fmtDate(first.date)} to ${fmtDate(E.iso(E.addDays(E.parseDate(last.date), 1)))}` : ''}</p></div>
+      return `<article class="stop box" aria-labelledby="stop-${i}">
+        <div class="stop-head"><div><h3 id="stop-${i}">${esc(bases[s.base].name)}</h3><p class="stop-meta">${s.nights} night${s.nights > 1 ? 's' : ''}, day ${first.index + 1}${s.nights > 1 ? ` to ${last.index + 1}` : ''}${first.date ? `, ${fmtDate(first.date)} to ${fmtDate(E.iso(E.addDays(E.parseDate(last.date), 1)))}` : ''}</p></div>
           <div class="stop-tools">
             <div class="stepper" role="group" aria-label="Nights in ${esc(bases[s.base].short)}"><button type="button" data-action="night-minus" data-i="${i}" aria-label="One night less in ${esc(bases[s.base].short)}"${s.nights <= 1 ? ' disabled' : ''}><span class="minus" aria-hidden="true"></span></button><output>${s.nights}</output><button type="button" data-action="night-plus" data-i="${i}" aria-label="One night more in ${esc(bases[s.base].short)}"${s.nights >= 14 ? ' disabled' : ''}>+</button></div>
             <button type="button" class="icon-btn" data-action="move" data-i="${i}" data-d="-1"${i === 0 ? ' disabled' : ''} aria-label="Visit ${esc(bases[s.base].short)} earlier">Earlier</button>
@@ -323,23 +323,23 @@
             <button type="button" class="icon-btn" data-action="change-place" data-i="${i}">Change place</button>
             <button type="button" class="icon-btn" data-action="remove-stop" data-i="${i}"${plan.stops.length < 2 ? ' disabled' : ''}>Remove</button>
           </div></div>
-        ${info.warnings.length ? `<div class="stop-notices">${info.warnings.map(w => `<div class="notice ${w.kind === 'unavailable' || w.kind === 'rule' ? 'notice-bad' : 'notice-warn'}"><span>${esc(w.text)}</span>${w.kind === 'unavailable' || w.kind === 'rule' ? `<button type="button" class="button button-sm button-ghost" data-action="stays" data-i="${i}">See other stays</button>` : ''}</div>`).join('')}</div>` : ''}
-        <div class="stay-row"><div><strong>${esc(stay.name)}</strong> <span class="stay-sub">· ${esc(stay.type)} · ${esc(stay.location)}</span>${badgeRow(stay, info)}</div>
-          <div><p class="stay-sub">${money(info.price.total)} for ${s.nights} night${s.nights > 1 ? 's' : ''}, ${c.party.rooms} room${c.party.rooms > 1 ? 's' : ''}</p><button type="button" class="button button-sm button-ghost" data-action="stays" data-i="${i}">Change stay</button></div></div>
+        ${info.warnings.length ? `<div class="stop-notices">${info.warnings.map(w => `<div class="notice ${w.kind === 'unavailable' || w.kind === 'rule' ? 'notice-bad' : 'notice-warn'}"><span>${esc(w.text)}</span>${w.kind === 'unavailable' || w.kind === 'rule' ? `<button type="button" class="button button-sm button-secondary" data-action="stays" data-i="${i}">See other stays</button>` : ''}</div>`).join('')}</div>` : ''}
+        <div class="stay-row"><div><strong>${esc(stay.name)}</strong> <span class="stay-sub">${esc(stay.type)}, ${esc(stay.location)}</span>${badgeRow(stay, info)}</div>
+          <div><p class="stay-sub">${money(info.price.total)} for ${s.nights} night${s.nights > 1 ? 's' : ''}, ${c.party.rooms} room${c.party.rooms > 1 ? 's' : ''}</p><button type="button" class="button button-sm button-secondary" data-action="stays" data-i="${i}">Change stay</button></div></div>
         <ol class="days">${days.map(dayHtml).join('')}</ol>
         <details class="acts-edit"><summary>Add or remove things to do in ${esc(bases[s.base].short)}</summary>
-          ${here.map(a => { const cost = a.adult * c.party.adultPriced + a.child * c.party.childPriced; return `<label class="check"><span>${esc(a.name)}<span class="act-meta">${a.hours} h · ${esc(a.when)} · ${cost ? money(cost) + ' for your group' : 'Free'}${a.note ? ' · ' + esc(a.note) : ''}</span></span><input type="checkbox" data-action="toggle-act" data-i="${i}" data-id="${a.id}"${s.acts.includes(a.id) ? ' checked' : ''}></label>`; }).join('')}
+          ${here.map(a => { const cost = a.adult * c.party.adultPriced + a.child * c.party.childPriced; return `<label class="check"><span>${esc(a.name)}<span class="act-meta">${a.hours} h, ${esc(a.when)}, ${cost ? money(cost) + ' for your group' : 'free'}${a.note ? '. ' + esc(a.note) : ''}</span></span><input type="checkbox" data-action="toggle-act" data-i="${i}" data-id="${a.id}"${s.acts.includes(a.id) ? ' checked' : ''}></label>`; }).join('')}
         </details>
       </article>`;
     }).join('');
     const dep = c.days[c.days.length - 1];
-    $('stops').innerHTML = stopsHtml + `<article class="stop glass-strong" aria-label="Departure day"><ol class="days">${dayHtml(dep)}</ol></article>`;
+    $('stops').innerHTML = stopsHtml + `<article class="stop box" aria-label="Departure day"><ol class="days">${dayHtml(dep)}</ol></article>`;
   }
 
   function renderElsewhere() {
     const inRoute = new Set(plan.stops.map(s => s.base));
     const others = activities.filter(a => !inRoute.has(a.base)).sort((a, b) => (plan.interests.includes(b.type) - plan.interests.includes(a.type)) || (b.adult - a.adult)).slice(0, 6);
-    $('elsewhere').innerHTML = `<h3>Want something that is not on this route?</h3><p class="small">These need a stop somewhere new. We show the extra nights, driving and cost before anything changes.</p><ul>${others.map(a => `<li><span><strong>${esc(a.name)}</strong> <span class="muted">· needs a stop in ${esc(bases[a.base].short)}</span></span><button type="button" class="icon-btn" data-action="add-place" data-base="${a.base}" data-act="${a.id}">See what it takes</button></li>`).join('')}</ul>`;
+    $('elsewhere').innerHTML = `<h3>Want something that is not on this route?</h3><p class="small">These need a stop somewhere new. We show the extra nights, driving and cost before anything changes.</p><ul>${others.map(a => `<li><span><strong>${esc(a.name)}</strong> <span class="muted">needs a stop in ${esc(bases[a.base].short)}</span></span><button type="button" class="icon-btn" data-action="add-place" data-base="${a.base}" data-act="${a.id}">See what it takes</button></li>`).join('')}</ul>`;
   }
 
   function renderSummary(c) {
@@ -349,10 +349,10 @@
     const over = plan.budget && c.remaining < 0;
     const offers = c.stopInfo.filter(s => s.price.offer).map(s => `${s.price.offer.title} at ${s.stay.name}: ${money(s.price.offer.saving)} off`);
     $('summary').innerHTML = `
-      <div class="sum-label"><p class="eyebrow">Your trip</p><span class="badge badge-sample">Planning estimate</span></div>
-      <h2 class="h3">${esc(pkg.name)}${JSON.stringify(E.fromPackage(pkg).stops) !== JSON.stringify(plan.stops) ? '<span class="small"> · customized</span>' : ''}</h2>
+      <div class="sum-label"><p class="label">Your trip</p><span class="badge badge-sample">Planning estimate</span></div>
+      <h2 class="h3">${esc(pkg.name)}${JSON.stringify(E.fromPackage(pkg).stops) !== JSON.stringify(plan.stops) ? '<span class="small">, customized</span>' : ''}</h2>
       <p class="sum-total" id="sum-total">${money(c.total)}</p>
-      <p class="sum-pp">${money(c.total / c.party.pax)} per person · ${c.party.pax} traveller${c.party.pax > 1 ? 's' : ''}</p>
+      <p class="sum-pp">${money(c.total / c.party.pax)} per person, ${c.party.pax} traveller${c.party.pax > 1 ? 's' : ''}</p>
       ${plan.budget ? `<div class="budget-bar${over ? ' over' : ''}" role="img" aria-label="${Math.round(c.total / Math.max(1, c.groundBudget) * 100)} percent of budget used"><span style="width:${pct}%"></span></div>
       <p class="budget-text ${over ? 'over' : 'under'}">${c.groundBudget <= 0 ? 'Flights use up the whole budget.' : over ? `${money(-c.remaining)} over your budget` : `${money(c.remaining)} left in your budget`}${plan.budgetIncludesFlights ? ` after about ${money(c.flights)} for flights` : ''}</p>` : `<p class="budget-text">No budget set yet.</p>`}
       <dl class="trip-facts"><div><dt>Days</dt><dd>${c.tripDays}</dd></div><div><dt>Nights</dt><dd>${c.nights}</dd></div><div><dt>Rooms</dt><dd>${c.party.rooms}</dd></div><div><dt>On the road</dt><dd>${Math.round(c.driveHours)} h</dd></div></dl>
@@ -370,13 +370,13 @@
       ${offers.length ? `<p class="small">Offers applied: ${esc(offers.join('. '))}. Sample offers.</p>` : ''}
       <p class="small">Sample rates, ratings and offers. Not a quote. Flights, insurance, visa fees and tips are not included.${plan.currency !== 'USD' ? ` Converted from USD at a fixed sample rate.` : ''}</p>
       <div class="actions-grid">
-        <button type="button" class="button button-moss button-sm" data-action="save">Save</button>
-        <button type="button" class="button button-ghost button-sm" data-action="share">Share link</button>
-        <button type="button" class="button button-ghost button-sm" data-action="download">Download</button>
-        <button type="button" class="button button-ghost button-sm" data-action="print">Print or PDF</button>
+        <button type="button" class="button button-primary button-sm" data-action="save">Save</button>
+        <button type="button" class="button button-secondary button-sm" data-action="share">Share link</button>
+        <button type="button" class="button button-secondary button-sm" data-action="download">Download</button>
+        <button type="button" class="button button-secondary button-sm" data-action="print">Print or PDF</button>
       </div>
-      <a class="button button-ghost button-sm" style="width:100%;margin-top:8px" href="#quote">Request a confirmed quote</a>
-      <p class="stage-line">Now: <strong>planning estimate</strong> → confirmed quote → confirmed booking</p>`;
+      <a class="button button-secondary button-sm" style="width:100%;margin-top:8px" href="#quote">Request a confirmed quote</a>
+      <p class="stage-line">Now: <strong>planning estimate</strong>. Next comes a confirmed quote, then a confirmed booking.</p>`;
     // Smooth cost change
     const el = $('sum-total');
     if (lastTotal !== null && lastTotal !== c.total && !reduce) {
@@ -386,8 +386,8 @@
     }
     lastTotal = c.total;
     $('mobile-total').innerHTML = `<div><span class="mt-amt">${money(c.total)}</span><span class="mt-sub${over ? ' over' : ''}">${plan.budget ? (over ? `${money(-c.remaining)} over budget` : `${money(c.remaining)} under budget`) : 'Estimate, no budget set'}</span></div>
-      <button type="button" class="button button-sm button-ghost" data-action="goto" data-target="suggest-section">Save money</button>
-      <button type="button" class="button button-sm button-moss" data-action="goto" data-target="summary">Details</button>`;
+      <button type="button" class="button button-sm button-secondary" data-action="goto" data-target="suggest-section">Save money</button>
+      <button type="button" class="button button-sm button-primary" data-action="goto" data-target="summary">Details</button>`;
   }
 
   function renderSaved() {
@@ -423,7 +423,7 @@
         const d = r.c.total - now.total; const isCur = r.x.id === cur.id;
         const diff = isCur ? [] : E.compareStays(cur, r.x);
         return `<article class="opt${isCur ? ' is-current' : ''}${ok(r) ? '' : ' is-dim'}">
-          <div class="opt-top"><div><h3>${esc(r.x.name)}</h3><p class="small" style="margin:0">${esc(r.x.type)} · ${E.tierLabel(r.x.tier)} · ${esc(r.x.location)}</p></div>
+          <div class="opt-top"><div><h3>${esc(r.x.name)}</h3><p class="small" style="margin:0">${esc(r.x.type)}, ${E.tierLabel(r.x.tier).toLowerCase()}, ${esc(r.x.location)}</p></div>
             <div class="opt-price"><strong>${money(r.info.price.total)}</strong><small>${s.nights} night${s.nights > 1 ? 's' : ''}, ${now.party.rooms} room${now.party.rooms > 1 ? 's' : ''}, taxes included</small>${isCur ? '<small>Your current stay</small>' : `<small class="${d > 0 ? 'delta-up' : 'delta-down'}">Trip total ${d > 0 ? 'rises' : 'drops'} by ${money(Math.abs(d))}</small>`}</div></div>
           ${badgeRow(r.x, r.info)}
           ${ok(r) ? '' : `<p class="small" style="color:var(--bad);margin:0">Below your rating rule.</p>`}
@@ -432,7 +432,7 @@
           <li>Editorial pick. No sponsorship or commission.</li>
           ${diff.map(t => `<li>${esc(t)}</li>`).join('')}</ul>
           ${r.info.price.unavailable ? `<div class="notice notice-bad"><span>No sample rate for some of your nights. This stay may be full or closed on those dates. Pick another stay or move your dates.</span></div>` : ''}
-          ${isCur ? '' : `<div><button type="button" class="button button-sm button-moss" data-action="pick-stay" data-i="${i}" data-id="${r.x.id}"${r.info.price.unavailable ? ' disabled' : ''}>Choose this stay</button></div>`}
+          ${isCur ? '' : `<div><button type="button" class="button button-sm button-primary" data-action="pick-stay" data-i="${i}" data-id="${r.x.id}"${r.info.price.unavailable ? ' disabled' : ''}>Choose this stay</button></div>`}
         </article>`;
       }).join('')}`);
     $('stay-sort').addEventListener('change', e => staysDialog(i, e.target.value));
@@ -459,7 +459,7 @@
         const i = plan.stops.findIndex(s => s.base === b);
         const next = E.clone(plan); if (actId && !next.stops[i].acts.includes(actId)) next.stops[i].acts.push(actId);
         pendingPlans.push({ plan: next, msg: `Added to ${bases[b].short}.` });
-        return `<article class="opt"><h3>${esc(bases[b].name)} is already on your route</h3>${actId ? previewHtml(E.preview(plan, next)) : ''}<div><button type="button" class="button button-sm button-moss" data-action="apply-pending" data-k="${pendingPlans.length - 1}">${actId ? 'Add the activity' : 'Close'}</button></div></article>`;
+        return `<article class="opt"><h3>${esc(bases[b].name)} is already on your route</h3>${actId ? previewHtml(E.preview(plan, next)) : ''}<div><button type="button" class="button button-sm button-primary" data-action="apply-pending" data-k="${pendingPlans.length - 1}">${actId ? 'Add the activity' : 'Close'}</button></div></article>`;
       }
       const next = E.withStop(plan, b); const at = next.stops.findIndex(s => s.base === b);
       if (actId) next.stops[at].acts.push(actId);
@@ -469,7 +469,7 @@
       const coastNote = !bases[b].coastal && plan.stops.every(s => bases[s.base].coastal) ? '<span>This is inland from your coastal route. The driving and the extra night are part of the cost above.</span>' : '';
       return `<article class="opt"><div class="opt-top"><h3>${esc(bases[b].name)}</h3><span class="badge">${next.stops[at].nights} night${next.stops[at].nights > 1 ? 's' : ''}, between ${prev} and ${nx}</span></div>
         ${previewHtml(pv, coastNote)}<p class="small" style="margin:0">${esc(CW.seasonNotes[bases[b].region])}</p>
-        <div><button type="button" class="button button-sm button-moss" data-action="apply-pending" data-k="${pendingPlans.length - 1}">Add ${esc(bases[b].short)}</button></div></article>`;
+        <div><button type="button" class="button button-sm button-primary" data-action="apply-pending" data-k="${pendingPlans.length - 1}">Add ${esc(bases[b].short)}</button></div></article>`;
     }).join('');
     openSheet(actId ? `Add ${E.actById[actId].name}` : 'Add a place', (actId ? `<p>${esc(E.actById[actId].name)} happens near ${esc(bases[onlyBase].short)}. Here is what adding it means for your trip.</p>` : '<p>We place each new stop where it adds the least driving. You can move it afterwards.</p>') + body);
   }
@@ -482,14 +482,14 @@
       next.stops[i] = { base: b, nights: Math.max(s.nights, bases[b].minNights || 1), stay: E.pickStay(b, plan.tier, plan.rule), acts: [], arriveBy: 'road' };
       const pv = E.preview(plan, next);
       pendingPlans.push({ plan: next, msg: `${bases[s.base].short} changed to ${bases[b].short}.` });
-      return `<article class="opt"><h3>${esc(bases[b].name)}</h3>${previewHtml(pv)}<div><button type="button" class="button button-sm button-moss" data-action="apply-pending" data-k="${pendingPlans.length - 1}">Go to ${esc(bases[b].short)} instead</button></div></article>`;
+      return `<article class="opt"><h3>${esc(bases[b].name)}</h3>${previewHtml(pv)}<div><button type="button" class="button button-sm button-primary" data-action="apply-pending" data-k="${pendingPlans.length - 1}">Go to ${esc(bases[b].short)} instead</button></div></article>`;
     }).join('');
     openSheet(`Change ${bases[s.base].short}`, `<p>Your nights stay the same where possible. Activities in ${esc(bases[s.base].short)} are removed, and you can add new ones after.</p>${body}`);
   }
 
   function confirmDialog(title, text, next, msg, pv) {
     pendingPlans = [{ plan: next, msg }];
-    openSheet(title, `<p>${text}</p>${pv ? previewHtml(pv) : ''}<div class="sugg-actions"><button type="button" class="button button-moss" data-action="apply-pending" data-k="0">Yes, change it</button><button type="button" class="button button-ghost" data-close>Cancel</button></div>`);
+    openSheet(title, `<p>${text}</p>${pv ? previewHtml(pv) : ''}<div class="sugg-actions"><button type="button" class="button button-primary" data-action="apply-pending" data-k="0">Yes, change it</button><button type="button" class="button button-secondary" data-close>Cancel</button></div>`);
   }
 
   /* ---------- Day count helpers ---------- */
@@ -512,7 +512,7 @@
     L.push(`Length: ${c.tripDays} days, ${c.nights} nights. Pace: ${config.pace[plan.pace].label}. Transport: ${plan.transport === 'driver' ? 'private ' + c.party.vehicle + ' and driver' : 'transfers between towns'}.`);
     L.push(`Stay rule: ${plan.rule.minRating ? plan.rule.minRating.toFixed(1) + ' or higher' : 'any rating'}, ${plan.rule.minReviews}+ reviews.`, '');
     c.days.forEach(d => {
-      L.push(`DAY ${d.index + 1}${d.date ? ' · ' + fmtDate(d.date) : ''} · ${d.departure ? 'Departure' : bases[d.base].name}`);
+      L.push(`Day ${d.index + 1}${d.date ? ', ' + fmtDate(d.date) : ''}: ${d.departure ? 'Departure' : bases[d.base].name}`);
       const place = id => id === 'cmb' ? 'the airport' : bases[id].short;
       d.before.forEach(b => L.push(`  Before you leave ${bases[plan.stops[b.stop].base].short}: ${E.actById[b.id].name} (${E.actById[b.id].hours} h)`));
       if (d.leg) L.push(`  ${d.leg.mode === 'train' ? 'Scenic train' : 'Drive'} from ${place(d.leg.from)} to ${place(d.leg.to)}, about ${E.fmtHours(d.leg.hours)}`);
@@ -599,7 +599,7 @@
   function keepSetup() { return { arrival: plan.arrival, departure: plan.departure, adults: plan.adults, kids: plan.kids.slice(), rooms: plan.rooms, currency: plan.currency, budget: plan.budget, budgetIncludesFlights: plan.budgetIncludesFlights, flightsPerPerson: plan.flightsPerPerson, rule: Object.assign({}, plan.rule), needs: plan.needs, diet: plan.diet, interests: plan.interests.slice(), vehicle: plan.vehicle }; }
   function saveDialog() {
     const def = `${pkgBySlug[plan.pkg].name}${plan.arrival ? ', ' + fmtDate(plan.arrival) : ''}`;
-    openSheet('Save this trip', `<p>Saved trips stay in this browser on this device. They do not sync. Use Share link to move a plan to another device.</p><label class="field">Name<input id="save-name" value="${esc(def)}" maxlength="80"></label><div class="sugg-actions"><button type="button" class="button button-moss" data-action="confirm-save">Save</button></div>`);
+    openSheet('Save this trip', `<p>Saved trips stay in this browser on this device. They do not sync. Use Share link to move a plan to another device.</p><label class="field">Name<input id="save-name" value="${esc(def)}" maxlength="80"></label><div class="sugg-actions"><button type="button" class="button button-primary" data-action="confirm-save">Save</button></div>`);
   }
 
   // Form fields
@@ -636,7 +636,7 @@
     const out = $('quote-out');
     if (!name || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) { out.innerHTML = `<div class="notice notice-bad"><span>Please add your name and a valid email so we can reply.</span></div>`; return; }
     const req = ['CEYLONWAYS QUOTE REQUEST', `Name: ${name}`, `Email: ${email}`, `Country: ${fd.get('country') || 'Not given'}`, `Contact by: ${fd.get('contact')}`, `Flexible dates: ${fd.get('flexible') ? 'Yes' : 'No'}`, `Message: ${fd.get('message') || 'None'}`, '', planText()].join('\n');
-    out.innerHTML = `<div class="notice notice-warn"><span><strong>Your request is ready, but it has not been sent.</strong> Ceylonways does not have a live quote inbox yet, so nothing has left this device. Download it or copy it to keep it.</span><button type="button" class="button button-sm button-moss" id="q-dl">Download request</button><button type="button" class="button button-sm button-ghost" id="q-copy">Copy request</button></div>`;
+    out.innerHTML = `<div class="notice notice-warn"><span><strong>Your request is ready, but it has not been sent.</strong> Ceylonways does not have a live quote inbox yet, so nothing has left this device. Download it or copy it to keep it.</span><button type="button" class="button button-sm button-primary" id="q-dl">Download request</button><button type="button" class="button button-sm button-secondary" id="q-copy">Copy request</button></div>`;
     $('q-dl').onclick = () => download('ceylonways-quote-request.txt', req);
     $('q-copy').onclick = async () => toast(await copy(req) ? 'Request copied.' : 'Copy is blocked here. Use Download instead.');
   });
