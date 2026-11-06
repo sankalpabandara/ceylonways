@@ -1236,3 +1236,6 @@ body.map-open .site-header, body.map-open .mobile-plan { display: none; }
 .m-photo figcaption a { color: var(--ivory-mute); }
 .m-guide { color: var(--lime); font-size: 14px; }
 @media (max-width: 640px) { .toc ol { columns: 1; } .guide-cover-wrap { padding-top: 16px; } }
+
+/* Section labels are plain text, not spaced capitals */
+.eyebrow { font: 600 15px/1.3 var(--body); letter-spacing: 0; text-transform: none; }
