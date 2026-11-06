@@ -1008,12 +1008,10 @@ html:not(.js) .stage-ch { position: relative; opacity: 1; transform: none; margi
 body.is-loading { overflow: hidden; }
 #mask-loader { position: fixed; inset: 0; z-index: 120; display: grid; place-items: center; align-content: center; gap: 16px; padding: 24px; text-align: center; background: rgba(6, 12, 10, 0.55); -webkit-backdrop-filter: blur(12px); backdrop-filter: blur(12px); transition: opacity .4s var(--ease), backdrop-filter .5s var(--ease); }
 #mask-loader.is-done { opacity: 0; pointer-events: none; -webkit-backdrop-filter: blur(0); backdrop-filter: blur(0); }
-.mask { width: 180px; height: auto; animation: maskfloat 5s ease-in-out infinite; filter: drop-shadow(0 18px 30px rgba(0, 0, 0, .55)); }
-@media (min-width: 721px) { .mask { width: 240px; } }
+.mask { width: 230px; height: auto; animation: maskfloat 5s ease-in-out infinite; filter: drop-shadow(0 18px 30px rgba(0, 0, 0, .55)); }
+@media (min-width: 721px) { .mask { width: 320px; } }
 @keyframes maskfloat { 0%, 100% { transform: translateY(-3px); } 50% { transform: translateY(3px); } }
-.mask-eye { fill: #E0A93B; animation: eyeglow 2.8s ease-in-out infinite; }
-@keyframes eyeglow { 0%, 100% { opacity: .6; } 50% { opacity: 1; } }
-#mask-loader.is-failed .mask-eye { animation: none; opacity: .35; }
+#mask-loader.is-failed .mask { animation: none; filter: grayscale(.8) brightness(.65); }
 .mask-track { width: min(220px, 60vw); height: 2px; border-radius: 2px; background: rgba(243, 245, 233, .16); overflow: hidden; }
 #mask-bar { display: block; height: 100%; width: 0; background: var(--lime); transition: width .25s linear; }
 #mask-status { margin: 0; font: 500 12px var(--mono); letter-spacing: .1em; color: var(--ivory-soft); }
@@ -1052,7 +1050,7 @@ body.map-open .site-header, body.map-open .mobile-plan { display: none; }
 #m-simple svg { width: 100%; height: 100%; }
 #m-simple path[data-slug] { fill: rgba(143, 169, 104, .34); stroke: rgba(243, 245, 233, .55); stroke-width: .7; vector-effect: non-scaling-stroke; cursor: pointer; }
 #m-simple path[data-slug]:hover, #m-simple path[data-slug]:focus, #m-simple path.on { fill: rgba(190, 209, 128, .6); stroke: var(--lime); outline: none; }
-#s-route { stroke: var(--lime); stroke-width: 2; vector-effect: non-scaling-stroke; }
+#s-route { stroke: #FF6FE6; stroke-width: 2.5; stroke-linecap: round; stroke-linejoin: round; vector-effect: non-scaling-stroke; filter: drop-shadow(0 0 4px #FF2BD6); }
 #s-pins circle { fill: var(--ivory); stroke: var(--ink); vector-effect: non-scaling-stroke; }
 #s-pins circle.on { fill: var(--lime); }
 #s-loc .here { fill: #2F9BFF; stroke: #fff; vector-effect: non-scaling-stroke; }
@@ -1120,7 +1118,10 @@ body.map-open .site-header, body.map-open .mobile-plan { display: none; }
 .m-pin.is-on i { transform: scale(1.5); box-shadow: 0 0 0 4px rgba(243, 245, 233, .7); }
 .m-pin.is-faded { opacity: .4; }
 .m-cluster { justify-content: center; width: 44px; height: 44px; border-radius: 50%; background: var(--lime); color: #0B1A14; text-shadow: none; font-size: 15px; box-shadow: 0 0 0 4px rgba(190, 209, 128, .3); }
-.m-num { display: grid; place-items: center; width: 26px; height: 26px; border-radius: 50%; background: var(--lime); color: #0B1A14; font: 700 13px var(--body); box-shadow: 0 0 0 2px var(--ink); }
+.m-num { display: grid; place-items: center; width: 26px; height: 26px; border-radius: 50%; background: #FFF4FD; color: #0B1A14; font: 700 13px var(--body); box-shadow: 0 0 0 2px #FF2BD6, 0 0 12px 2px rgba(255, 43, 214, .65); }
+.m-head { width: 38px; height: 38px; pointer-events: none; }
+.m-head i { display: block; width: 100%; height: 100%; border-radius: 50%; background: radial-gradient(circle, #fff 0 32%, rgba(255, 255, 255, .8) 44%, rgba(255, 150, 238, .4) 58%, rgba(255, 43, 214, 0) 72%); animation: m-head 1.4s ease-in-out infinite alternate; }
+@keyframes m-head { from { transform: scale(.82); } to { transform: scale(1.12); } }
 .m-here { width: 18px; height: 18px; border-radius: 50%; background: #2F9BFF; border: 3px solid #fff; box-shadow: 0 0 14px 4px rgba(47, 155, 255, .8); animation: herepulse 2s ease-in-out infinite; }
 @keyframes herepulse { 50% { box-shadow: 0 0 22px 9px rgba(47, 155, 255, .45); } }
 
@@ -1149,8 +1150,7 @@ body.map-open .site-header, body.map-open .mobile-plan { display: none; }
   .m-toast { top: 64px; }
 }
 @media (prefers-reduced-motion: reduce) {
-  .mask, .mask-eye, .m-here { animation: none; }
-  .mask-eye { opacity: 1; }
+  .mask, .m-here, .m-head i { animation: none; }
   #m-island, .m-intro, .m-sheet { transition: none; }
 }
 

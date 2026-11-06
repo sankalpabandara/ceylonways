@@ -144,6 +144,7 @@
           sat: { type: 'raster', tiles: [tiles('assets/map/island/{z}/{x}/{y}.webp')], tileSize: 256, minzoom: 6, maxzoom: 10, bounds: BOUNDS },
           dem: terrain(), districts: { type: 'geojson', data: districtsGeo, promoteId: 'slug' },
           route: { type: 'geojson', lineMetrics: true, data: { type: 'FeatureCollection', features: [] } },
+          pulse: { type: 'geojson', data: { type: 'FeatureCollection', features: [] } },
           loc: { type: 'geojson', data: { type: 'FeatureCollection', features: [] } }
         },
         terrain: { source: 'dem', exaggeration: EXAG },
@@ -154,8 +155,11 @@
           { id: 'lines', type: 'line', source: 'districts', paint: { 'line-color': 'rgba(243,245,233,.5)', 'line-width': 0.8 } },
           { id: 'hot', type: 'line', source: 'districts', filter: ['==', ['get', 'slug'], ''], paint: { 'line-color': '#BED180', 'line-width': 2.6 } },
           { id: 'gap', type: 'fill', source: 'districts', filter: ['==', ['get', 'slug'], ''], paint: { 'fill-color': '#050A08', 'fill-opacity': 0.92 } },
-          { id: 'route-casing', type: 'line', source: 'route', layout: { 'line-cap': 'round', 'line-join': 'round' }, paint: { 'line-color': '#0B1A14', 'line-width': 6, 'line-opacity': 0.7 } },
-          { id: 'route', type: 'line', source: 'route', layout: { 'line-cap': 'round', 'line-join': 'round' }, paint: { 'line-color': '#BED180', 'line-width': 3 } },
+          { id: 'route-halo', type: 'line', source: 'route', layout: { 'line-cap': 'round', 'line-join': 'round' }, paint: { 'line-color': '#FF2BD6', 'line-width': 18, 'line-blur': 13, 'line-opacity': 0.4 } },
+          { id: 'route-glow', type: 'line', source: 'route', layout: { 'line-cap': 'round', 'line-join': 'round' }, paint: { 'line-color': '#FF2BD6', 'line-width': 7, 'line-blur': 4, 'line-opacity': 0.8 } },
+          { id: 'route', type: 'line', source: 'route', layout: { 'line-cap': 'round', 'line-join': 'round' }, paint: { 'line-color': '#FF6FE6', 'line-width': 2.6 } },
+          { id: 'pulse-glow', type: 'line', source: 'pulse', layout: { 'line-cap': 'round', 'line-join': 'round' }, paint: { 'line-color': '#FF9BEF', 'line-width': 10, 'line-blur': 6 } },
+          { id: 'pulse', type: 'line', source: 'pulse', layout: { 'line-cap': 'round', 'line-join': 'round' }, paint: { 'line-color': '#FFF1FC', 'line-width': 3 } },
           { id: 'loc-circle', type: 'fill', source: 'loc', paint: { 'fill-color': '#2F9BFF', 'fill-opacity': 0.16 } }
         ]
       } }, opts));
@@ -282,7 +286,7 @@
     island.setFilter('gap', ['==', ['get', 'slug'], '']);
     district.setFilter('edge', ['==', ['get', 'slug'], '']);
     S.lifted = false; S.place = null; S.slug = null;
-    if (!keepBusy) { S.busy = false; setView('districts'); syncUrl(); syncLoc(); $('m-back').focus(); }
+    if (!keepBusy) { S.busy = false; setView('districts'); syncUrl(); syncLoc(); $('m-back').focus(); liveRoute(); }
   }
 
   function expand(view) {
@@ -297,7 +301,7 @@
   }
   async function collapse() {
     if (S.lifted) await unlift();
-    S.open = false; clearRoute(false);
+    S.open = false; clearRoute(false); drawn = [];
     document.body.classList.remove('map-open'); stage.classList.add('is-compact'); stage.classList.remove('is-open');
     if (island) { setCompactGestures(true); const c = islandCam(); reduce ? island.jumpTo(c) : island.easeTo(Object.assign({}, c, { duration: 700 })); startDrift(); }
     syncUrl();
@@ -436,6 +440,7 @@
     const body = $('m-body');
     body.innerHTML = ({ districts: viewDistricts, preview: viewPreview, district: viewDistrict, place: viewPlace, filters: viewFilters, trip: viewTrip, location: viewLocation, cluster: viewCluster })[v]();
     body.scrollTop = 0;
+    if (v === 'trip' && !S.routeOn) liveRoute();
   }
 
   const placeRow = p => `<li><button type="button" class="m-row${matches(p) ? '' : ' is-faded'}" data-place="${p.id}"><strong>${esc(p.name)}</strong><span>${esc(TYPES[p.types[0]])} · ${esc(p.visit)}</span></button></li>`;
@@ -556,6 +561,7 @@
     saveTrip(); counts(); clearRoute(false);
     announce(i < 0 ? `${p.name} added to My Trip.` : `${p.name} removed.`);
     if (S.view === 'place' || S.view === 'trip') { const hold = S.place; setView(S.view); S.place = hold; }
+    liveRoute();
   }
   function viewTrip() {
     const stops = trip.stops.map(byId).filter(Boolean);
@@ -615,13 +621,30 @@
     });
     return { legs, coords, days, km: legs.reduce((s, l) => s + l.km, 0), min: legs.reduce((s, l) => s + l.min, 0) };
   }
-  let stopMarkers = [], routeAnim = 0;
+  let stopMarkers = [], routeAnim = 0, liveTurn = 0, drawn = [];
+  // The route glows best on darker imagery. It must be back to IMAGERY before a district lifts.
+  function shade(on) {
+    island.setPaintProperty('sat', 'raster-brightness-max', on ? 0.6 : IMAGERY['raster-brightness-max']);
+    island.setPaintProperty('sat', 'raster-saturation', on ? -0.3 : IMAGERY['raster-saturation']);
+  }
   function clearRoute(repaint) {
-    cancelAnimationFrame(routeAnim); S.routeOn = false; stage.classList.remove('is-route');
+    cancelAnimationFrame(routeAnim); liveTurn++; S.routeOn = false; stage.classList.remove('is-route');
     stopMarkers.forEach(m => m.remove()); stopMarkers = [];
-    if (island && island.getSource('route')) island.getSource('route').setData({ type: 'FeatureCollection', features: [] });
+    if (island && island.getSource('route')) { ['route', 'pulse'].forEach(s => island.getSource(s).setData({ type: 'FeatureCollection', features: [] })); shade(false); }
     if (simple) simple.route(null);
     if (repaint && S.view === 'trip') setView('trip');
+  }
+  // Draws the path as soon as stops are picked, without waiting for Build my route.
+  async function liveRoute() {
+    const turn = ++liveTurn;
+    if (!S.open || S.lifted || (!island && !simple)) return;
+    if (!trip.stops.length) return clearRoute(false);
+    try { await Promise.all([needRoutes(), needListings()]); } catch (e) { return; }
+    if (turn !== liveTurn || !S.open || S.lifted) return;
+    const before = trip.stops.join(), it = makeItinerary();
+    if (!it) return;
+    if (S.view === 'trip' && trip.stops.join() !== before) setView('trip');
+    drawRoute(it);
   }
   async function buildRoute() {
     const out = () => $('m-itin');
@@ -656,24 +679,68 @@
     return btoa(unescape(encodeURIComponent(JSON.stringify(plan)))).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
   }
   function drawRoute(it) {
+    cancelAnimationFrame(routeAnim); liveTurn++;
     S.routeOn = true; stage.classList.add('is-route');
     if (simple) return simple.route(it);
     stopMarkers.forEach(m => m.remove()); stopMarkers = [];
-    const b = new maplibregl.LngLatBounds(); it.coords.forEach(c => b.extend(c));
-    const pad = isPhone() ? { top: 70, bottom: Math.round(innerHeight * 0.5), left: 30, right: 30 } : { top: 90, bottom: 60, left: 60, right: 480 };
-    island.fitBounds(b, { padding: pad, pitch: 45, bearing: 0, maxZoom: 10.5, duration: reduce ? 0 : 900 });
-    const src = island.getSource('route'), line = c => ({ type: 'Feature', geometry: { type: 'LineString', coordinates: c }, properties: {} });
+    const c = it.coords, cum = [0];
+    for (let i = 1; i < c.length; i++) cum.push(cum[i - 1] + Math.hypot((c[i][0] - c[i - 1][0]) * Math.cos(c[i][1] * Math.PI / 180), c[i][1] - c[i - 1][1]));
+    const total = cum[cum.length - 1];
+    // Only the part of the trip that changed draws itself again.
+    let same = 0; while (same < c.length && same < drawn.length && c[same][0] === drawn[same][0] && c[same][1] === drawn[same][1]) same++;
+    const from = same ? cum[same - 1] : 0, span = total - from; drawn = c;
+    shade(true);
+    if (span > 0) {
+      const b = new maplibregl.LngLatBounds(); c.forEach(p => b.extend(p));
+      const pad = isPhone() ? { top: 70, bottom: Math.round(innerHeight * 0.66), left: 30, right: 30 } : { top: 90, bottom: 60, left: 60, right: 480 };
+      // cameraForBounds ignores perspective, so the near edge of a tilted view needs extra room.
+      // Zooming out shrinks towards the screen centre, so the offset for the panel grows to match.
+      const cam = island.cameraForBounds(b, { padding: pad, pitch: 45, bearing: 0, maxZoom: 10.5 });
+      if (cam) {
+        const out = 0.45, grow = 2 ** out, mid = b.getCenter(), at = maplibregl.LngLat.convert(cam.center);
+        island.easeTo({ center: [mid.lng + (at.lng - mid.lng) * grow, mid.lat + (at.lat - mid.lat) * grow], zoom: cam.zoom - out, pitch: 45, bearing: 0, duration: reduce ? 0 : 900 });
+      }
+    }
+    const src = island.getSource('route'), pulse = island.getSource('pulse'), line = p => ({ type: 'Feature', geometry: { type: 'LineString', coordinates: p }, properties: {} });
     const order = [trip.start, ...trip.stops];
-    const pin = (id, n, at) => { const s = byId(id), el = document.createElement('div'); el.className = 'm-num'; el.textContent = n; el.title = s.name; stopMarkers.push(new maplibregl.Marker({ element: el }).setLngLat([s.lon, s.lat]).addTo(island)); };
-    if (reduce) { src.setData(line(it.coords)); order.forEach((id, i) => pin(id, i || 'S')); return; }
-    const t0 = performance.now(), total = it.coords.length; let shown = 0;
-    pin(order[0], 'S');
-    const stepsAt = []; let run = 0; it.legs.forEach(l => { run += l.line.length; stepsAt.push(run); });
+    const pin = (id, n) => { const s = byId(id), el = document.createElement('div'); el.className = 'm-num'; el.textContent = n; el.title = s.name; stopMarkers.push(new maplibregl.Marker({ element: el }).setLngLat([s.lon, s.lat]).addTo(island)); };
+    if (reduce) { src.setData(line(c)); order.forEach((id, i) => pin(id, i || 'S')); return; }
+    const at = d => {
+      let lo = 0, hi = c.length - 1;
+      while (hi - lo > 1) { const m = (lo + hi) >> 1; if (cum[m] <= d) lo = m; else hi = m; }
+      const k = (d - cum[lo]) / ((cum[hi] - cum[lo]) || 1);
+      return { i: lo, p: [c[lo][0] + (c[hi][0] - c[lo][0]) * k, c[lo][1] + (c[hi][1] - c[lo][1]) * k] };
+    };
+    const el = document.createElement('div'); el.className = 'm-head'; el.innerHTML = '<i></i>';
+    const head = new maplibregl.Marker({ element: el, pitchAlignment: 'map', rotationAlignment: 'map' }).setLngLat(c[0]).addTo(island);
+    stopMarkers.push(head);
+    const glow = el.firstChild, tail = total * 0.07;
+    const place = (d, size) => {
+      const h = at(d), t = at(Math.max(0, d - tail * size));
+      head.setLngLat(h.p); pulse.setData(line([t.p, ...c.slice(t.i + 1, h.i + 1), h.p]));
+      return h;
+    };
+    const stepsAt = []; let run = 0; it.legs.forEach(l => { run += l.line.length; stepsAt.push(cum[Math.min(run, c.length) - 1]); });
+    let shown = 0; pin(order[0], 'S');
+    const t0 = performance.now(), wait0 = span > 0 ? 500 : 0, draw = span > 0 ? Math.max(700, 2500 * span / total) : 0;
+    const lap = Math.min(9000, Math.max(4000, total * 2600)), rest = 800;
+    let lapFrom = 0, last = 0;
     const tick = t => {
-      const k = Math.min(1, (t - t0 - 500) / 2500), n = Math.max(2, Math.floor(k * total));
-      src.setData(line(it.coords.slice(0, n)));
-      while (shown < order.length - 1 && n >= stepsAt[shown]) { shown++; pin(order[shown], shown); }
-      if (k < 1) routeAnim = requestAnimationFrame(tick);
+      routeAnim = requestAnimationFrame(tick);
+      if (!lapFrom) {
+        const k = draw ? Math.min(1, Math.max(0, (t - t0 - wait0) / draw)) : 1, d = from + span * k, h = place(d, 1);
+        src.setData(line(c.slice(0, h.i + 1).concat([h.p])));
+        while (shown < order.length - 1 && d >= stepsAt[shown]) { shown++; pin(order[shown], shown); }
+        if (k === 1) lapFrom = t + rest;
+        return;
+      }
+      // After the drawing, a light keeps running along the route. 30 frames a second is enough and saves battery.
+      if (t < lapFrom || t - last < 32) return;
+      last = t;
+      const f = ((t - lapFrom) % (lap + rest)) / lap;
+      if (f >= 1) { glow.style.opacity = 0; pulse.setData(line([c[0], c[0]])); return; }
+      const fade = Math.min(1, f / 0.04, (1 - f) / 0.04);
+      glow.style.opacity = fade; place(total * f, fade);
     };
     routeAnim = requestAnimationFrame(tick);
   }
@@ -774,7 +841,7 @@
     if (id === 'm-days') trip.days = Math.min(30, Math.max(1, Number(v) || 1));
     if (id === 'm-vehicle') trip.vehicle = v;
     if (id === 'm-pace') trip.pace = v;
-    if (/^m-(start|loop|days|vehicle|pace)$/.test(id)) { saveTrip(); clearRoute(false); }
+    if (/^m-(start|loop|days|vehicle|pace)$/.test(id)) { saveTrip(); clearRoute(false); liveRoute(); }
   }
 
   /* ---------- URL state ---------- */
