@@ -36,9 +36,44 @@
 
   /* ---------- The header turns solid once the map plate has scrolled past ---------- */
   const header = document.querySelector('.site-header');
-  const paint = () => header.classList.toggle('is-scrolled', scrollY > 40 || header.classList.contains('is-menu'));
+  const journey = document.getElementById('journey');
+  let lastY = scrollY;
+  const paint = () => {
+    const menu = header.classList.contains('is-menu');
+    header.classList.toggle('is-scrolled', scrollY > 40 || menu);
+    if (journey) {
+      const inside = scrollY > 80 && scrollY < journey.offsetHeight - innerHeight;
+      if (Math.abs(scrollY - lastY) > 6) { header.classList.toggle('is-away', inside && scrollY > lastY && !menu); lastY = scrollY; }
+      if (!inside) header.classList.remove('is-away');
+    }
+  };
   addEventListener('scroll', paint, { passive: true });
   paint();
+
+  /* ---------- Districts: the list and the map answer each other ---------- */
+  const atlas = document.querySelector('.atlas');
+  if (atlas) {
+    const mark = (slug, on) => $$(`[data-d="${slug}"]`, atlas).forEach(e => e.classList.toggle('is-on', on));
+    ['pointerover', 'focusin'].forEach(n => atlas.addEventListener(n, e => { const a = e.target.closest('[data-d]'); if (a) mark(a.dataset.d, true); }));
+    ['pointerout', 'focusout'].forEach(n => atlas.addEventListener(n, e => { const a = e.target.closest('[data-d]'); if (a) mark(a.dataset.d, false); }));
+  }
+
+  /* ---------- Places hub: pointing at a card lights its dot on the island ---------- */
+  const hub = document.querySelector('.hub');
+  if (hub) {
+    const name = hub.querySelector('[data-hub-name]'), first = name.textContent;
+    const mark = (a, on) => { const c = hub.querySelector(`circle[data-p="${a.dataset.p}"]`); if (c) c.classList.toggle('is-on', on); name.textContent = on ? a.dataset.n : first; };
+    ['pointerover', 'focusin'].forEach(n => hub.addEventListener(n, e => { const a = e.target.closest('a[data-p]'); if (a) mark(a, true); }));
+    ['pointerout', 'focusout'].forEach(n => hub.addEventListener(n, e => { const a = e.target.closest('a[data-p]'); if (a) mark(a, false); }));
+  }
+
+  /* ---------- Place index: the photo follows what you point at ---------- */
+  const gaz = document.querySelector('.gaz-wrap');
+  if (gaz && matchMedia('(hover: hover)').matches) {
+    const img = gaz.querySelector('.gaz-photo img');
+    const show = a => { if (img.getAttribute('src') !== a.dataset.preview) { img.classList.remove('is-in'); img.onload = () => img.classList.add('is-in'); img.src = a.dataset.preview; img.alt = ''; } img.hidden = false; };
+    ['pointerover', 'focusin'].forEach(n => gaz.addEventListener(n, e => { const a = e.target.closest('a[data-preview]'); if (a) show(a); }));
+  }
 
   /* ---------- Add to My Trip from a place page ---------- */
   const tripBtn = document.querySelector('[data-trip-add]');

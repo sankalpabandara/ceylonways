@@ -24,7 +24,7 @@
 
   let meta = [], districtsGeo = null, places = [], hubs = [], zone = null, routes = null, listed = [], listedReady = null;
   const listedIdx = {};
-  let island = null, district = null, simple = null;
+  let island = null, district = null, simple = null, journeyOn = false;
   const S = { open: false, mode: 'explore', slug: null, place: null, preview: null, view: 'districts', sheet: 'half', filters: { types: [], climate: [], month: '' }, query: '', lifted: false, busy: false, routeOn: false };
   const trip = Object.assign({ stops: [], districts: [], start: 'airport', days: 7, vehicle: 'car', pace: 'balanced', loop: true, manual: false }, read(TRIP_KEY) || {});
   const loc = { state: 'off', id: null, lat: 0, lon: 0, acc: 0, last: 0, timer: null };
@@ -78,8 +78,14 @@
   }
   function finishLoader() {
     clearInterval(watchdog); bump('tiles', 1);
+    const eye = loader.querySelector('.mask-eye-l').getBoundingClientRect(), mask = loader.querySelector('.mask');
+    const ex = eye.left + eye.width / 2, ey = eye.top + eye.height / 2, box = mask.getBoundingClientRect();
+    loader.style.setProperty('--ex', ex + 'px'); loader.style.setProperty('--ey', ey + 'px'); loader.style.setProperty('--er', eye.width * .42 + 'px');
+    mask.style.transformOrigin = `${ex - box.left}px ${ey - box.top}px`;
     loader.classList.add('is-done'); document.body.classList.remove('is-loading');
-    setTimeout(() => loader.remove(), reduce ? 200 : 520);
+    // The mask and the hole in its eye grow on the same curve, so you fly through the pupil.
+    if (!reduce) mask.animate([{ transform: 'scale(1)' }, { transform: 'scale(120)' }], { duration: 1000, easing: 'cubic-bezier(.76, 0, .9, .1)', fill: 'forwards' });
+    setTimeout(() => loader.remove(), reduce ? 200 : 1150);
     setTimeout(showPhotos, 400);
   }
   function startWatch() {
@@ -87,10 +93,40 @@
     watchdog = setInterval(() => { const idle = Date.now() - lastMove; if (idle > 20000) fail(); else if (idle > 8000) status('This is taking longer than usual'); }, 1000);
   }
 
+  // A tile that does not exist is answered with a clear pixel, because a 404 makes the terrain renderer blur everything around it.
+  const CLEAR = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNgYGBgAAAABQABeqhXUAAAAABJRU5ErkJggg==';
+  let tileIndex = null;
+  const keepIndex = raw => { tileIndex = {}; Object.keys(raw).forEach(k => { tileIndex[k] = {}; Object.keys(raw[k]).forEach(z => { const [x0, y0, w, b] = raw[k][z]; tileIndex[k][z] = [x0, y0, w, Uint8Array.from(atob(b), c => c.charCodeAt(0))]; }); }); };
+  const tileThere = (name, z, x, y) => {
+    const r = tileIndex && tileIndex[name] && tileIndex[name][z]; if (!r) return false;
+    const dx = x - r[0], dy = y - r[1], i = dy * r[2] + dx;
+    return dx >= 0 && dx < r[2] && dy >= 0 && (i >> 3) < r[3].length && !!(r[3][i >> 3] & (1 << (i & 7)));
+  };
+  const tileRequest = (url, type) => {
+    if (type !== 'Tile' || !tileIndex) return undefined;
+    const m = /assets\/map\/(?:d\/)?([a-z-]+)\/(\d+)\/(\d+)\/(\d+)\.webp/.exec(url);
+    return m && tileIndex[m[1]] && !tileThere(m[1], +m[2], +m[3], +m[4]) ? { url: CLEAR } : undefined;
+  };
+
+  // One imagery source for the flight. Each tile is put together from the districts that share it, because 25 separate sources cost more per frame than the drawing does.
+  const clearBytes = () => Uint8Array.from(atob(CLEAR.split(',')[1]), c => c.charCodeAt(0)).buffer;
+  const joinTile = async (req, abort) => {
+    const [z, x, y] = req.url.split('/').slice(-3).map(Number);
+    const owners = meta.filter(d => tileThere(d.slug, z, x, y));
+    if (!owners.length) return { data: clearBytes() };
+    const parts = await Promise.all(owners.map(d => fetch(tiles(`assets/map/d/${d.slug}/${z}/${x}/${y}.webp`), { signal: abort.signal }).then(r => { if (!r.ok) throw new Error('tile ' + r.status); return r.blob(); })));
+    if (parts.length === 1) return { data: await parts[0].arrayBuffer() };
+    const maps = await Promise.all(parts.map(b => createImageBitmap(b)));
+    const c = document.createElement('canvas'); c.width = maps[0].width; c.height = maps[0].height;
+    const g = c.getContext('2d');
+    maps.forEach(b => { g.drawImage(b, 0, 0); b.close(); });
+    return { data: await createImageBitmap(c) };
+  };
+
   async function loadData() {
     if (!districtsGeo) {
-      const [g, m, d, z] = await Promise.all([pull(asset('assets/map/districts.geojson'), 'data', 0.6, 0), fetch(asset('assets/map/districts-meta.json')).then(r => r.json()), fetch(asset('assets/map/destinations.json')).then(r => r.json()), fetch(asset('assets/map/zone.json')).then(r => r.json())]);
-      districtsGeo = JSON.parse(g); meta = m; places = d.places; hubs = d.hubs; zone = z;
+      const [g, m, d, z, t] = await Promise.all([pull(asset('assets/map/districts.geojson'), 'data', 0.6, 0), fetch(asset('assets/map/districts-meta.json')).then(r => r.json()), fetch(asset('assets/map/destinations.json')).then(r => r.json()), fetch(asset('assets/map/zone.json')).then(r => r.json()), fetch(asset('assets/map/tile-index.json')).then(r => r.json()).catch(() => null)]);
+      districtsGeo = JSON.parse(g); meta = m; places = d.places; hubs = d.hubs; zone = z; if (t) keepIndex(t);
     }
     bump('data', 1);
   }
@@ -129,7 +165,7 @@
   };
 
   /* ---------- Maps ---------- */
-  const terrain = () => ({ type: 'raster-dem', tiles: [tiles('assets/map/terrain/{z}/{x}/{y}.png')], tileSize: 256, encoding: 'terrarium', minzoom: 6, maxzoom: 11, bounds: BOUNDS });
+  const terrain = () => ({ type: 'raster-dem', tiles: [tiles('assets/map/terrain/{z}/{x}/{y}.webp')], tileSize: 256, encoding: 'terrarium', minzoom: 6, maxzoom: 11, bounds: BOUNDS });
   const camPad = () => {
     if (!S.open) return isPhone() ? { top: Math.round(innerHeight * 0.56), bottom: 70, left: 10, right: 10 } : { top: 60, bottom: 60, left: Math.round(innerWidth * 0.46), right: 10 };
     return isPhone() ? { top: 70, bottom: 170, left: 10, right: 10 } : { top: 70, bottom: 40, left: 40, right: 460 };
@@ -143,17 +179,20 @@
     for (let y = 1; y <= 15; y++) f.push(line([[76, y], [86, y]]));
     return { type: 'FeatureCollection', features: f };
   };
+  // A marker asks the graphics chip whether the land hides it. That read stops the whole pipeline, so labels that always show skip it.
+  const freeMarker = m => { m._updateOpacity = () => {}; return m; };
   const SEAS = [['Bay of Bengal', 82.45, 8.75], ['Indian Ocean', 82.05, 5.95], ['Gulf of Mannar', 79.1, 8.75], ['Palk Strait', 79.45, 10.1]];
   function seaNames() {
     SEAS.forEach(([name, lon, lat]) => {
       const el = document.createElement('span'); el.className = 'm-sea'; el.textContent = name; el.setAttribute('aria-hidden', 'true');
-      new maplibregl.Marker({ element: el, anchor: 'center', opacityWhenCovered: 1 }).setLngLat([lon, lat]).addTo(island);
+      freeMarker(new maplibregl.Marker({ element: el, anchor: 'center' })).setLngLat([lon, lat]).addTo(island);
     });
   }
 
   function createMaps() {
     return new Promise((resolve, reject) => {
-      const opts = { attributionControl: false, center: [80.7, 7.8], zoom: 6.6, pitch: 30, maxZoom: 12.5, minZoom: 5.5, maxPitch: 70, canvasContextAttributes: { antialias: true } };
+      maplibregl.addProtocol('cw', joinTile);
+      const opts = { attributionControl: false, center: [80.7, 7.8], zoom: 6.6, pitch: 30, maxZoom: 12.5, minZoom: 5.5, maxPitch: 70, pixelRatio: Math.min(devicePixelRatio || 1, isPhone() ? 1.5 : 2), canvasContextAttributes: { antialias: true }, transformRequest: tileRequest };
       island = new maplibregl.Map(Object.assign({ container: 'm-island', style: {
         version: 8,
         sources: {
@@ -204,10 +243,15 @@
         setTimeout(resolve, 1200);
       };
       island.once('load', go); district.once('load', go);
-      island.on('mousemove', 'dim', e => { if (!S.open || S.lifted || isPhone()) return; const f = e.features[0]; hover(f.properties.slug, e.point); });
-      island.on('mouseleave', 'dim', () => { if (!S.preview) hotLine(''); $('m-tip').hidden = true; });
+      island.on('mousemove', 'dim', e => {
+        const f = e.features[0];
+        if (!S.open) { if (scrollY < 60 && !isPhone()) plateHover(f.properties.slug, e.point); return; }
+        if (S.lifted || isPhone()) return;
+        hover(f.properties.slug, e.point);
+      });
+      island.on('mouseleave', 'dim', () => { if (!S.preview) hotLine(''); $('m-tip').hidden = true; $('j-tip').hidden = true; });
       island.on('click', e => {
-        if (!S.open) return expand();
+        if (!S.open) { if (scrollY < 60) expand(); return; }
         if (S.lifted) return;
         const f = island.queryRenderedFeatures(e.point, { layers: ['dim'] })[0];
         if (f) pickDistrict(f.properties.slug, e.point);
@@ -231,6 +275,13 @@
     const tip = $('m-tip'); tip.hidden = false;
     tip.innerHTML = `<strong>${esc(m.name)}</strong><span>${n.length ? esc(n.slice(0, 2).map(p => p.name).join(', ')) : 'Places coming soon'}</span>`;
     tip.style.transform = `translate(${Math.min(pt.x + 16, innerWidth - 260)}px, ${pt.y + 16}px)`;
+  }
+
+  function plateHover(slug, pt) {
+    hotLine(slug);
+    const tip = $('j-tip'), m = dMeta(slug); tip.hidden = false;
+    tip.innerHTML = `<strong>${esc(m.name)}</strong><span>Click to open the map</span>`;
+    tip.style.transform = `translate(${Math.min(pt.x + 16, innerWidth - 220)}px, ${pt.y + 16}px)`;
   }
 
   function pickDistrict(slug, pt) {
@@ -310,7 +361,9 @@
 
   function expand(view) {
     if (S.open) return;
-    S.open = true; scrollTo(0, 0); needListings();
+    if (window.CWJourney) CWJourney.pause();
+    $('j-tip').hidden = true; hotLine('');
+    S.back = scrollY; S.open = true; scrollTo({ top: 0, behavior: 'instant' }); needListings();
     document.body.classList.add('map-open'); stage.classList.remove('is-compact'); stage.classList.add('is-open');
     if (island) { setCompactGestures(false); stopDrift(); const c = islandCam(); reduce ? island.jumpTo(c) : island.easeTo(Object.assign({}, c, { duration: 900 })); }
     if (isPhone()) S.sheet = 'peek';
@@ -322,15 +375,16 @@
     if (S.lifted) await unlift();
     S.open = false; clearRoute(false); drawn = [];
     document.body.classList.remove('map-open'); stage.classList.add('is-compact'); stage.classList.remove('is-open');
-    if (island) { setCompactGestures(true); const c = islandCam(); reduce ? island.jumpTo(c) : island.easeTo(Object.assign({}, c, { duration: 700 })); startDrift(); }
+    if (island) { setCompactGestures(true); const c = islandCam(); if (reduce || journeyOn) island.jumpTo(c); else island.easeTo(Object.assign({}, c, { duration: 700 })); startDrift(); }
     syncUrl();
+    if (journeyOn) { scrollTo({ top: S.back || 0, behavior: 'instant' }); CWJourney.resume(); }
     const b = $('m-explore'); if (b) b.focus();
   }
 
   /* Slow turn of the compact island */
   let drifting = false, driftDir = 1;
   function startDrift() {
-    if (reduce || !island || drifting || S.open) return; drifting = true;
+    if (reduce || journeyOn || !island || drifting || S.open) return; drifting = true;
     const step = () => { if (!drifting || S.open) return; driftDir *= -1; island.easeTo({ bearing: 3 * driftDir, duration: 9000, easing: t => t }); };
     island.on('moveend', step); island._drift = step; step();
   }
@@ -367,7 +421,7 @@
         el.onclick = () => openPlace(p.id);
       }
       const lng = [g[0].p.lon, g[0].p.lat];
-      markers.push(new maplibregl.Marker({ element: el, anchor: 'center' }).setLngLat(lng).addTo(district));
+      markers.push(freeMarker(new maplibregl.Marker({ element: el, anchor: 'center' })).setLngLat(lng).addTo(district));
     });
   }
 
@@ -394,7 +448,7 @@
         el.innerHTML = `<i aria-hidden="true"></i><span>${esc(p.name)}</span>`; el.setAttribute('aria-label', `${p.name}. ${p.cat}. Listed place`);
         el.onclick = () => openPlace(p.id);
       }
-      markers.push(new maplibregl.Marker({ element: el, anchor: 'center' }).setLngLat([g[0].p.lon, g[0].p.lat]).addTo(district));
+      markers.push(freeMarker(new maplibregl.Marker({ element: el, anchor: 'center' })).setLngLat([g[0].p.lon, g[0].p.lat]).addTo(district));
     });
   }
 
@@ -603,7 +657,7 @@
     if (i < 0) { trip.stops.push(id); if (!trip.districts.includes(p.district)) trip.districts.push(p.district); } else trip.stops.splice(i, 1);
     saveTrip(); counts(); clearRoute(false);
     announce(i < 0 ? `${p.name} added to My trip.` : `${p.name} removed.`);
-    if (S.view === 'place' || S.view === 'trip') { const hold = S.place; setView(S.view); S.place = hold; }
+    if (S.open && (S.view === 'place' || S.view === 'trip')) { const hold = S.place; setView(S.view); S.place = hold; }
     liveRoute();
   }
   function viewTrip() {
@@ -746,7 +800,7 @@
     }
     const src = island.getSource('route'), pulse = island.getSource('pulse'), line = p => ({ type: 'Feature', geometry: { type: 'LineString', coordinates: p }, properties: {} });
     const order = [trip.start, ...trip.stops];
-    const pin = (id, n) => { const s = byId(id), el = document.createElement('div'); el.className = 'm-num'; el.textContent = n; el.title = s.name; stopMarkers.push(new maplibregl.Marker({ element: el }).setLngLat([s.lon, s.lat]).addTo(island)); };
+    const pin = (id, n) => { const s = byId(id), el = document.createElement('div'); el.className = 'm-num'; el.textContent = n; el.title = s.name; stopMarkers.push(freeMarker(new maplibregl.Marker({ element: el })).setLngLat([s.lon, s.lat]).addTo(island)); };
     if (reduce) { src.setData(line(c)); order.forEach((id, i) => pin(id, i || 'S')); return; }
     const at = d => {
       let lo = 0, hi = c.length - 1;
@@ -755,7 +809,7 @@
       return { i: lo, p: [c[lo][0] + (c[hi][0] - c[lo][0]) * k, c[lo][1] + (c[hi][1] - c[lo][1]) * k] };
     };
     const el = document.createElement('div'); el.className = 'm-head'; el.innerHTML = '<i></i>';
-    const head = new maplibregl.Marker({ element: el, pitchAlignment: 'map', rotationAlignment: 'map' }).setLngLat(c[0]).addTo(island);
+    const head = freeMarker(new maplibregl.Marker({ element: el, pitchAlignment: 'map', rotationAlignment: 'map' })).setLngLat(c[0]).addTo(island);
     stopMarkers.push(head);
     const glow = el.firstChild, tail = total * 0.07;
     const place = (d, size) => {
@@ -865,7 +919,7 @@
     if (simple) return simple.location(loc);
     [island, district].forEach((m, i) => {
       m.getSource('loc').setData(circle());
-      if (!locMarkers[i]) { const el = document.createElement('div'); el.className = 'm-here'; el.setAttribute('aria-label', 'You are here'); el.title = 'You are here'; locMarkers[i] = new maplibregl.Marker({ element: el }).setLngLat([loc.lon, loc.lat]).addTo(m); } else locMarkers[i].setLngLat([loc.lon, loc.lat]);
+      if (!locMarkers[i]) { const el = document.createElement('div'); el.className = 'm-here'; el.setAttribute('aria-label', 'You are here'); el.title = 'You are here'; locMarkers[i] = freeMarker(new maplibregl.Marker({ element: el })).setLngLat([loc.lon, loc.lat]).addTo(m); } else locMarkers[i].setLngLat([loc.lon, loc.lat]);
     });
   }
   function hideLocMarker() {
@@ -921,11 +975,27 @@
     if (m[2]) await needListings();
     if (m[1] && dMeta(m[1])) lift(m[1], m[2] && byId(m[2]) ? m[2] : undefined);
   }
+  function paintStory() { document.querySelectorAll('[data-story-add]').forEach(b => { b.textContent = trip.stops.includes(b.dataset.storyAdd) ? 'Added. Undo' : 'Add to my trip'; }); }
   function afterReady() {
     $('m-explore').disabled = false; $('m-tap').hidden = false;
     $('m-explore').onclick = () => expand(); $('m-tap').onclick = () => expand();
-    if (!simple) startDrift();
-    counts(); routeFromUrl();
+    if (!simple && !reduce && window.CWJourney) {
+      journeyOn = true;
+      CWJourney.start({ tileThere, freeMarker, skirt: SKIRT, island, stage, islandCam, isPhone, asset: tiles, meta, imagery: IMAGERY, isOpen: () => S.open }).catch(e => {
+        console.warn(e); journeyOn = false; document.documentElement.classList.add('no-journey'); startDrift();
+      }).then(routeFromUrl);
+    } else {
+      document.documentElement.classList.add('no-journey');
+      if (!simple) startDrift();
+      routeFromUrl();
+    }
+    counts();
+    document.addEventListener('click', e => {
+      if (e.target.closest('[data-open-map]')) return expand();
+      const b = e.target.closest('[data-story-add]'); if (!b) return;
+      toggleStop(b.dataset.storyAdd); paintStory();
+    });
+    paintStory();
     setTimeout(needMedia, 2500);
   }
 
