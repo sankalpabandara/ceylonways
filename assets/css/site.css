@@ -508,7 +508,7 @@ html:not(.js) img[data-src] { display: none; }
 .mstage.is-open { position: fixed; inset: 0; z-index: 60; height: auto; min-height: 0; color: var(--ink); background: var(--sea-deep); }
 body.map-open { overflow: hidden; }
 #m-island, #m-district, #m-simple { position: absolute; inset: 0; z-index: 1; }
-.js:not(.no-journey) .is-compact:not(.is-flying) #m-island { filter: drop-shadow(0 16px 12px rgba(6, 44, 40, .42)); }
+html.js:not(.no-journey):not(.is-flying) .is-compact #m-island { filter: drop-shadow(0 16px 12px rgba(6, 44, 40, .42)); }
 #m-island { transform-origin: 40% 45%; transition: transform .75s var(--ease), filter .75s var(--ease); will-change: transform; }
 #m-district { opacity: 0; pointer-events: none; }
 .is-show-district #m-district { opacity: 1; filter: drop-shadow(0 26px 22px rgba(4, 20, 16, .72)); }

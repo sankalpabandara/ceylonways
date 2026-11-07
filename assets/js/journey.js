@@ -64,7 +64,8 @@
     steps = [...wrap.querySelectorAll('.step')].map(el => {
       const r = el.getBoundingClientRect(), t = r.top + scrollY - top;
       const nm = el.querySelector('.step-name');
-      return { el, nm, inner: el.querySelector('.step-in'), top: t, h: r.height, shot: el.dataset.shot, hold: el.dataset.shot === 'atlas' ? t + vh * .1 : t + Math.max(0, (r.height - vh) / 2) };
+      const box = nm ? { bottom: nm.offsetTop + nm.offsetHeight, right: nm.offsetLeft + Math.min(nm.offsetWidth, nm.textContent.length * nm.offsetHeight * .5) } : null;
+      return { el, nm, box, inner: el.querySelector('.step-in'), top: t, h: r.height, shot: el.dataset.shot, hold: el.dataset.shot === 'atlas' ? t + vh * .1 : t + Math.max(0, (r.height - vh) / 2) };
     });
     const fit = (pad, p, b) => { const f = map.cameraForBounds([[79.55, 5.85], [81.95, 9.9]], { padding: pad, pitch: p, bearing: b }), c = maplibregl.LngLat.convert(f.center); return { c: [c.lng, c.lat], z: f.zoom, p, b, el: 0 }; };
     const W = innerWidth, narrow = W <= 1000;
@@ -216,7 +217,7 @@
   function marks(cam) {
     const reach = phone ? .24 : .34, low = cam.zoom > 9.8 && month < 0, W = innerWidth, H = innerHeight, placed = [];
     // The giant name of the stop fills the sky, so a label must stand clear of it.
-    const near = steps.find(s => s.nm && y >= s.top - vh * .32 && y < s.top + s.h - vh * .68), box = near ? near.nm.getBoundingClientRect() : null;
+    const box = (steps.find(s => s.nm && y >= s.top - vh * .32 && y < s.top + s.h - vh * .68) || {}).box;
     for (const l of labels) {
       let on = low && Math.hypot(l.lon - cam.center[0], l.lat - cam.center[1]) < reach;
       if (on) {
@@ -224,7 +225,7 @@
         // The copy sits low on the left and the photo low on the right. A label stands about 60 pixels above its point.
         on = q.y > 90 && q.y < H - (phone ? 300 : 110) && q.x > wide && q.x < W - wide
           && !(phone ? q.y > H * .5 : (q.x < W * .54 && q.y > H * .53) || (q.x - wide < W * .24 && q.y > H * .44) || (q.x + wide > W * .64 && q.y > H * .52));
-        if (on && box && q.y - 66 < box.bottom + 40 && q.x - wide < box.left + Math.min(box.width, near.nm.textContent.length * box.height * .5)) on = false;
+        if (on && box && q.y - 66 < box.bottom + 40 && q.x - wide < box.right) on = false;
         if (on && placed.some(p => Math.abs(p.x - q.x) < p.w + wide + 8 && Math.abs(p.y - q.y) < 30)) on = false;
         if (on) placed.push({ x: q.x, y: q.y, w: wide });
       }
