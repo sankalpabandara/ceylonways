@@ -1,8 +1,7 @@
-Newsreader, Public Sans, Noto Serif Sinhala and Noto Serif Tamil are licensed under the SIL Open Font License 1.1.
+Yaldevi and Abhaya Libre are licensed under the SIL Open Font License 1.1.
 https://openfontlicense.org
 
-Newsreader: Copyright 2020 The Newsreader Project Authors.
-Public Sans: Copyright 2015 The Public Sans Project Authors.
-Noto Serif Sinhala and Noto Serif Tamil: Copyright 2022 The Noto Project Authors.
+Yaldevi: Copyright 2021 The Yaldevi Project Authors (https://github.com/mooniak/yaldevi-font).
+Abhaya Libre: Copyright 2013 to 2016 The Abhaya Libre Project Authors (https://github.com/mooniak/abhaya-libre-font).
 
 These files are subsets made with tools/fonts.py.

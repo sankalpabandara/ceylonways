@@ -15,7 +15,7 @@
 
   // The light of the day. Fog is what turns the imagery into distance.
   const LIGHT = {
-    plate: { top: '#0B2545', horizon: '#0B2545', fog: '#0B2545', tint: '#0B2545', tintOn: 0, ground: 1, hfog: 1, blend: 1 },
+    plate: { top: '#1F7A74', horizon: '#1F7A74', fog: '#1F7A74', tint: '#1F7A74', tintOn: 0, ground: 1, hfog: 1, blend: 1 },
     dawn: { top: '#6F8FB6', horizon: '#FFD7AE', fog: '#FFD7AE', tint: '#FF9A5C', tintOn: .1, ground: .22, hfog: .7, blend: .65, sun: 98 },
     morning: { top: '#7FB2D9', horizon: '#E9F1F4', fog: '#E9F1F4', tint: '#FFFFFF', tintOn: 0, ground: .34, hfog: .62, blend: .7 },
     mist: { top: '#C5D2DB', horizon: '#EEF3F4', fog: '#EEF3F4', tint: '#FFFFFF', tintOn: .06, ground: .16, hfog: .72, blend: .8 },
@@ -34,7 +34,8 @@
     ella: { snd: [0, .6, .16], c: [81.02, 6.86], z: 11.7, p: 78, b: 196, orbit: -12, el: 1450, light: 'gold', km: 376.3, cloud: .25, sea: 1 },
     galle: { snd: [.9, .08, 0], c: [80.235, 6.04], z: 12.2, p: 72, b: 250, orbit: 10, el: 10, light: 'sunset', km: 580.5, cloud: .05, sea: 1 },
     island: { snd: [.28, 0, 0], top: true, light: 'plate', km: 741.1, cloud: 0 },
-    months: { snd: [.12, 0, 0], top: true, light: 'plate', km: 741.1, cloud: 0, months: true }
+    months: { snd: [.12, 0, 0], top: true, light: 'plate', km: 741.1, cloud: 0, months: true },
+    atlas: { snd: [.12, 0, 0], top: true, light: 'plate', km: 741.1, cloud: 0 }
   };
   const LANDMARKS = [
     ['Sigiriya Rock', 80.7603, 7.957], ['Dambulla', 80.6492, 7.8567], ['Knuckles Range', 80.8, 7.42], ['Kandy', 80.6413, 7.2936], ['Victoria Reservoir', 80.79, 7.24],
@@ -49,6 +50,7 @@
 
   let A = null, map = null, data = null, keys = [], steps = [], end = 0, vh = 0, y = 0, last = 0, raf = 0, paused = false, ready = false;
   const look = { b: 0, p: 0, drag: null };
+  let flying = false;
   let idle = 0, px = 0, py = 0, cx = 0, cy = 0, drawnKm = -1, skyKey = '', seaOn = -1, lineOn = -1, month = -1, head = null, labels = [], sharpOn = false, phone = false, topCam = null;
   const hud = { km: $('j-km'), ele: $('j-ele'), day: $('j-day'), fill: $('j-fill'), dot: $('j-dot') };
   const seen = { km: '', ele: '', day: '' };
@@ -61,14 +63,14 @@
     const top = wrap.getBoundingClientRect().top + scrollY;
     steps = [...wrap.querySelectorAll('.step')].map(el => {
       const r = el.getBoundingClientRect(), t = r.top + scrollY - top;
-      return { el, inner: el.querySelector('.step-in'), top: t, h: r.height, shot: el.dataset.shot, hold: t + Math.max(0, (r.height - vh) / 2) };
+      const nm = el.querySelector('.step-name');
+      return { el, nm, inner: el.querySelector('.step-in'), top: t, h: r.height, shot: el.dataset.shot, hold: el.dataset.shot === 'atlas' ? t + vh * .1 : t + Math.max(0, (r.height - vh) / 2) };
     });
-    const c = A.islandCam(), ll = maplibregl.LngLat.convert(c.center);
-    topCam = { c: [ll.lng, ll.lat], z: c.zoom, p: c.pitch, b: 0, el: 0 };
-    const pad = phone ? { top: 24, bottom: Math.round(vh * .54), left: 24, right: 24 } : { top: 60, bottom: 110, left: Math.round(innerWidth * .46), right: 40 };
-    const fit = map.cameraForBounds([[79.55, 5.85], [81.95, 9.9]], { padding: pad, pitch: 22, bearing: 0 }), fc = maplibregl.LngLat.convert(fit.center);
-    const lifted = { c: [fc.lng, fc.lat], z: fit.zoom, p: 22 };
-    keys = steps.map((s, i) => Object.assign({ y: s.hold, id: s.shot }, SHOTS[s.shot], SHOTS[s.shot].top ? Object.assign({}, topCam, i ? lifted : null) : null));
+    const fit = (pad, p, b) => { const f = map.cameraForBounds([[79.55, 5.85], [81.95, 9.9]], { padding: pad, pitch: p, bearing: b }), c = maplibregl.LngLat.convert(f.center); return { c: [c.lng, c.lat], z: f.zoom, p, b, el: 0 }; };
+    const W = innerWidth, narrow = W <= 1000;
+    const first = phone ? fit({ top: Math.round(vh * .15), bottom: Math.round(vh * .33), left: 16, right: 16 }, 46, -12) : fit({ top: 10, bottom: 84, left: 60, right: 60 }, 48, -12);
+    const beside = narrow ? fit({ top: 16, bottom: Math.round(vh * .58), left: 30, right: 30 }, 20, 0) : fit({ top: 40, bottom: 100, left: 30, right: Math.round(W * .58) }, 24, 0);
+    keys = steps.map((s, i) => Object.assign({ y: s.hold, id: s.shot }, SHOTS[s.shot], SHOTS[s.shot].top ? (i ? beside : first) : null));
     keys[0].y = 0;
     end = steps[steps.length - 1].top + steps[steps.length - 1].h - vh;
     if (phone) keys.forEach(k => { if (!k.top) k.z -= .35; });
@@ -107,7 +109,7 @@
     const key = JSON.stringify(sky);
     if (key !== skyKey) { skyKey = key; map.setSky(sky); }
     const lines = a.top && b.top ? 1 : a.top || b.top ? +(1 - smooth(.05, .5, a.top ? t : 1 - t)).toFixed(1) : 0;
-    if (lines !== lineOn) { lineOn = lines; map.setPaintProperty('lines', 'line-opacity', lines); map.setPaintProperty('grid', 'line-opacity', lines); if (map.getLayer('j-depth')) map.setLayoutProperty('j-depth', 'visibility', lines > 0 ? 'visible' : 'none'); redraw(); }
+    if (lines !== lineOn) { lineOn = lines; map.setPaintProperty('lines', 'line-opacity', lines * .7); redraw(); }
     A.stage.style.backgroundColor = css(fog); // past the far edge of the map, the fog carries on to the horizon
     const tint = $('j-tint'); tint.style.background = css(mix(A1.tint, B1.tint, t)); tint.style.opacity = lerp(A1.tintOn, B1.tintOn, t).toFixed(3);
     const sea = Math.round(lerp(a.sea || 0, b.sea || 0, t) * 20) / 20;
@@ -119,10 +121,11 @@
   // New road only changes the land around its tip. By default every update would repaint all the land in view, which is the costliest thing in the flight.
   const roadEdit = []; let drawnI = 0;
   const nearRoad = t => { const n = 2 ** t.z; return roadEdit.some(seg => seg.some(p => { const x = (p[0] + 180) / 360 * n - t.x, v = (1 - Math.asinh(Math.tan(p[1] * Math.PI / 180)) / Math.PI) / 2 * n - t.y; return x > -.08 && x < 1.08 && v > -.08 && v < 1.08; })); };
+  let wholeRoad = false, wholeTimer = 0;
   function keepLand() {
     const done = map._terrainDataCallback; if (!done) return;
     map.style.off('data', done);
-    map._terrainDataCallback = e => { if (e.sourceId === 'j-route' && e.tile && !nearRoad(e.tile.tileID.canonical)) return; done(e); };
+    map._terrainDataCallback = e => { if (e.sourceId === 'j-route' && e.tile && !wholeRoad && !nearRoad(e.tile.tileID.canonical)) return; done(e); };
     map.style.on('data', map._terrainDataCallback);
   }
 
@@ -205,12 +208,15 @@
     }
     const intro = document.querySelector('.m-intro'), g = document.querySelector('.m-giant'), f = clamp(1 - scroll / (vh * .5), 0, 1);
     intro.style.opacity = f.toFixed(3); intro.style.visibility = f < .01 ? 'hidden' : 'visible'; intro.style.transform = `translate3d(0,${(-(1 - f) * 40).toFixed(1)}px,0)`;
-    if (g) { g.style.opacity = f.toFixed(3); g.style.transform = `translate3d(0,${(scroll * .22).toFixed(1)}px,0)`; }
-    wrap.classList.toggle('is-flying', scroll > vh * .2 && scroll < end - 2);
+    if (g) { g.style.opacity = f.toFixed(3); g.style.transform = `translate3d(${(-cx * 12).toFixed(1)}px,${(-scroll * .35 - cy * 7).toFixed(1)}px,0)`; }
+    const sheetAt = steps.find(s => s.shot === 'atlas'), fly = scroll > vh * .2 && scroll < (sheetAt ? sheetAt.top - vh * .6 : end - 2);
+    if (fly !== flying) { flying = fly; wrap.classList.toggle('is-flying', fly); document.documentElement.classList.toggle('is-flying', fly); }
   }
 
   function marks(cam) {
     const reach = phone ? .24 : .34, low = cam.zoom > 9.8 && month < 0, W = innerWidth, H = innerHeight, placed = [];
+    // The giant name of the stop fills the sky, so a label must stand clear of it.
+    const near = steps.find(s => s.nm && y >= s.top - vh * .32 && y < s.top + s.h - vh * .68), box = near ? near.nm.getBoundingClientRect() : null;
     for (const l of labels) {
       let on = low && Math.hypot(l.lon - cam.center[0], l.lat - cam.center[1]) < reach;
       if (on) {
@@ -218,6 +224,7 @@
         // The copy sits low on the left and the photo low on the right. A label stands about 60 pixels above its point.
         on = q.y > 90 && q.y < H - (phone ? 300 : 110) && q.x > wide && q.x < W - wide
           && !(phone ? q.y > H * .5 : (q.x < W * .54 && q.y > H * .53) || (q.x - wide < W * .24 && q.y > H * .44) || (q.x + wide > W * .64 && q.y > H * .52));
+        if (on && box && q.y - 66 < box.bottom + 40 && q.x - wide < box.left + Math.min(box.width, near.nm.textContent.length * box.height * .5)) on = false;
         if (on && placed.some(p => Math.abs(p.x - q.x) < p.w + wide + 8 && Math.abs(p.y - q.y) < 30)) on = false;
         if (on) placed.push({ x: q.x, y: q.y, w: wide });
       }
@@ -320,7 +327,7 @@
   const show = on => JLAYERS.forEach(id => { if (map.getLayer(id)) map.setLayoutProperty(id, 'visibility', on ? 'visible' : 'none'); });
 
   function layers() {
-    map.addLayer({ id: 'j-sea', type: 'background', paint: { 'background-color': '#0B2545', 'background-opacity': 0 } }, 'grid');
+    map.addLayer({ id: 'j-sea', type: 'background', paint: { 'background-color': '#0D5255', 'background-opacity': 0, 'background-opacity-transition': { duration: 0 } } }, 'grid');
     map.addLayer({ id: 'j-season', type: 'fill', source: 'districts', paint: { 'fill-color': ['match', ['coalesce', ['feature-state', 's'], 0], 1, '#FFD36B', 2, '#FFFFFF', 3, '#2E7BFF', '#000000'], 'fill-opacity': ['match', ['coalesce', ['feature-state', 's'], 0], 1, .4, 2, .14, 3, .62, 0] } }, 'lines');
     map.addSource('j-route', { type: 'geojson', data: { type: 'FeatureCollection', features: [] } });
     const round = { 'line-cap': 'round', 'line-join': 'round' };
@@ -343,6 +350,38 @@
     data.stops.slice(1, -1).forEach(st => { const a = document.querySelector(`.j-stop[data-stop="${st.id}"]`); if (a) a.style.left = `${st.km / data.total * 100}%`; });
   }
 
+  /* The home sheet: a row lights its districts or draws its road on the island */
+  let trips = null, lit = [], tripOn = '', rowOn = null;
+  const light1 = (slugs, on) => slugs.forEach(id => map.setFeatureState({ source: 'districts', id }, { picked: on }));
+  const anyRoad = () => { wholeRoad = true; clearTimeout(wholeTimer); wholeTimer = setTimeout(() => { wholeRoad = false; }, 900); };
+  async function pointAt(row) {
+    if (row === rowOn || paused) return;
+    if (rowOn) rowOn.classList.remove('is-on');
+    rowOn = row; if (row) row.classList.add('is-on');
+    if (lit.length) { light1(lit, false); lit = []; }
+    const area = row && row.dataset.area, trip = row && row.dataset.trip;
+    if (area) { lit = area.split(' '); light1(lit, true); }
+    redraw();
+    if (trip === tripOn || (!trip && !tripOn)) return;
+    tripOn = trip || '';
+    anyRoad();
+    if (trip) {
+      trips = trips || await fetch(A.asset('assets/map/trips.json')).then(r => r.json()).catch(() => ({}));
+      if (tripOn === trip && trips[trip]) map.getSource('j-route').setData({ type: 'Feature', properties: {}, geometry: { type: 'LineString', coordinates: trips[trip] } });
+    } else { drawnKm = -1; render(Math.min(y, end), performance.now()); }
+  }
+  function sheetRows() {
+    const sheet = document.querySelector('.atlas-sheet'); if (!sheet) return;
+    const rows = [...sheet.querySelectorAll('[data-area], [data-trip]')];
+    if (matchMedia('(hover: hover) and (min-width: 1001px)').matches) {
+      ['pointerover', 'focusin'].forEach(n => sheet.addEventListener(n, e => { const r = e.target.closest('[data-area], [data-trip]'); if (r) pointAt(r); }));
+      sheet.addEventListener('pointerleave', () => pointAt(null));
+    } else {
+      const seen = new IntersectionObserver(l => l.forEach(e => { if (e.isIntersecting) pointAt(e.target); }), { rootMargin: '-56% 0px -30% 0px' });
+      rows.forEach(r => seen.observe(r));
+    }
+  }
+
   async function start(api) {
     A = api; map = api.island;
     data = await fetch(A.asset('assets/map/journey.json')).then(r => r.json());
@@ -354,7 +393,7 @@
     ready = true; y = scrollY;
     fetch(A.asset('assets/map/depths.geojson')).then(r => r.json()).then(g => {
       map.addSource('j-depths', { type: 'geojson', data: g });
-      map.addLayer({ id: 'j-depth', type: 'line', source: 'j-depths', paint: { 'line-color': '#FFFFFF', 'line-width': .7, 'line-opacity': ['interpolate', ['linear'], ['get', 'd'], 200, .3, 1000, .2, 4000, .1] } }, 'sat');
+      map.addLayer({ id: 'j-depth', type: 'line', source: 'j-depths', layout: { visibility: paused ? 'visible' : 'none' }, paint: { 'line-color': '#FFFFFF', 'line-width': .7, 'line-opacity': ['interpolate', ['linear'], ['get', 'd'], 200, .3, 1000, .2, 4000, .1] } }, 'sat');
       redraw();
     }).catch(() => {});
     addEventListener('resize', () => { if (!paused) { measure(); } });
@@ -376,6 +415,7 @@
       const p = (Number(e.target.value) + .5) / 12, to = wrap.getBoundingClientRect().top + scrollY + m.top + p * (m.h - vh);
       scrollTo({ top: to, behavior: 'instant' });
     });
+    sheetRows();
     wrap.classList.add('is-live');
     render(y, performance.now());
     raf = requestAnimationFrame(frame);
@@ -385,19 +425,21 @@
     if (!ready) return; paused = true;
     if (snd.on) { snd.master.gain.setTargetAtTime(.35, snd.ctx.currentTime, .4); soundMix([.5, .15, 0]); }
     map.setSky(undefined); skyKey = ''; seaOn = -1;
-    skirt(A.skirt); if (pace.now !== pace.base) map.setPixelRatio(pace.base); map.setPaintProperty('j-sea', 'background-opacity', 0); map.setPaintProperty('lines', 'line-opacity', 1); map.setPaintProperty('grid', 'line-opacity', 1); if (map.getLayer('j-depth')) map.setLayoutProperty('j-depth', 'visibility', 'visible'); lineOn = -1; A.stage.style.backgroundColor = '';
+    skirt(A.skirt); if (pace.now !== pace.base) map.setPixelRatio(pace.base); map.setPaintProperty('j-sea', 'background-opacity', 0); map.setPaintProperty('lines', 'line-opacity', 1); if (map.getLayer('j-depth')) map.setLayoutProperty('j-depth', 'visibility', 'visible'); lineOn = -1; A.stage.style.backgroundColor = '';
     map.setCenterClampedToGround(true); map.setMaxPitch(70);
     show(false); head.getElement().firstChild.style.opacity = 0;
     labels.forEach(l => { l.el.style.opacity = 0; l.o = '0'; });
     setMonth(-1);
-    wrap.classList.remove('is-flying');
+    wrap.classList.remove('is-flying'); document.documentElement.classList.remove('is-flying'); flying = false;
     ['.m-intro', '.m-giant'].forEach(q => { const e = document.querySelector(q); if (e) e.removeAttribute('style'); });
   }
   function resume() {
     if (!ready) return;
-    map.setMaxPitch(82); map.setCenterClampedToGround(false); show(true); if (pace.now !== pace.base) map.setPixelRatio(pace.now);
+    map.setMaxPitch(82); map.setCenterClampedToGround(false); show(true); if (map.getLayer('j-depth')) map.setLayoutProperty('j-depth', 'visibility', 'none'); if (pace.now !== pace.base) map.setPixelRatio(pace.now);
     paused = false; y = scrollY; last = 0; drawnKm = -1; measure();
     if (snd.on) snd.master.gain.setTargetAtTime(.85, snd.ctx.currentTime, .4);
   }
-  window.CWJourney = { start, pause, resume };
+  // True where the island takes clicks: on the first screen and beside the home sheet.
+  const atRest = () => { const a = steps.find(s => s.shot === 'atlas'); return scrollY < 60 || (a && scrollY > a.top - vh * .4); };
+  window.CWJourney = { start, pause, resume, atRest };
 })();

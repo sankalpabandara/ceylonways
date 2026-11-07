@@ -167,10 +167,10 @@
   /* ---------- Maps ---------- */
   const terrain = () => ({ type: 'raster-dem', tiles: [tiles('assets/map/terrain/{z}/{x}/{y}.webp')], tileSize: 256, encoding: 'terrarium', minzoom: 6, maxzoom: 11, bounds: BOUNDS });
   const camPad = () => {
-    if (!S.open) return isPhone() ? { top: Math.round(innerHeight * 0.56), bottom: 70, left: 10, right: 10 } : { top: 60, bottom: 60, left: Math.round(innerWidth * 0.46), right: 10 };
+    if (!S.open) return isPhone() ? { top: Math.round(innerHeight * .15), bottom: Math.round(innerHeight * .33), left: 16, right: 16 } : { top: 10, bottom: 84, left: 60, right: 60 };
     return isPhone() ? { top: 70, bottom: 170, left: 10, right: 10 } : { top: 70, bottom: 40, left: 40, right: 460 };
   };
-  const islandCam = () => { const c = island.cameraForBounds([[79.55, 5.85], [81.95, 9.9]], { padding: camPad(), pitch: S.open ? 45 : 30, bearing: 0 }); return { center: c.center, zoom: c.zoom, pitch: S.open ? 45 : 30, bearing: 0, padding: { top: 0, bottom: 0, left: 0, right: 0 } }; };
+  const islandCam = () => { const p = S.open ? 45 : 46, b = S.open ? 0 : -12, c = island.cameraForBounds([[79.55, 5.85], [81.95, 9.9]], { padding: camPad(), pitch: p, bearing: b }); return { center: c.center, zoom: c.zoom, pitch: p, bearing: b, padding: { top: 0, bottom: 0, left: 0, right: 0 } }; };
 
   // Whole degrees of latitude and longitude, drawn under the island like a printed chart.
   const degreeGrid = () => {
@@ -205,13 +205,13 @@
         },
         terrain: { source: 'dem', exaggeration: EXAG },
         layers: [
-          { id: 'grid', type: 'line', source: 'grid', paint: { 'line-color': 'rgba(255,255,255,.16)', 'line-width': 0.7 } },
+          { id: 'grid', type: 'line', source: 'grid', paint: { 'line-color': 'rgba(255,255,255,0)', 'line-width': 0.7 } },
           { id: 'sat', type: 'raster', source: 'sat', paint: IMAGERY },
-          { id: 'dim', type: 'fill', source: 'districts', paint: { 'fill-color': '#0B2545', 'fill-opacity': ['case', ['boolean', ['feature-state', 'dim'], false], 0.66, 0] } },
-          { id: 'picked', type: 'fill', source: 'districts', paint: { 'fill-color': '#FFFFFF', 'fill-opacity': ['case', ['boolean', ['feature-state', 'picked'], false], 0.3, 0] } },
+          { id: 'dim', type: 'fill', source: 'districts', paint: { 'fill-color': '#102E26', 'fill-opacity': ['case', ['boolean', ['feature-state', 'dim'], false], 0.66, 0] } },
+          { id: 'picked', type: 'fill', source: 'districts', paint: { 'fill-color': '#F3E27A', 'fill-opacity': ['case', ['boolean', ['feature-state', 'picked'], false], 0.42, 0] } },
           { id: 'lines', type: 'line', source: 'districts', paint: { 'line-color': 'rgba(255,255,255,.5)', 'line-width': 0.8 } },
           { id: 'hot', type: 'line', source: 'districts', filter: ['==', ['get', 'slug'], ''], paint: { 'line-color': '#FFFFFF', 'line-width': 2.6 } },
-          { id: 'gap', type: 'fill', source: 'districts', filter: ['==', ['get', 'slug'], ''], paint: { 'fill-color': '#071A33', 'fill-opacity': 0.92 } },
+          { id: 'gap', type: 'fill', source: 'districts', filter: ['==', ['get', 'slug'], ''], paint: { 'fill-color': '#0B2A23', 'fill-opacity': 0.92 } },
           { id: 'route-halo', type: 'line', source: 'route', layout: { 'line-cap': 'round', 'line-join': 'round' }, paint: { 'line-color': '#FF2BD6', 'line-width': 18, 'line-blur': 13, 'line-opacity': 0.4 } },
           { id: 'route-glow', type: 'line', source: 'route', layout: { 'line-cap': 'round', 'line-join': 'round' }, paint: { 'line-color': '#FF2BD6', 'line-width': 7, 'line-blur': 4, 'line-opacity': 0.8 } },
           { id: 'route', type: 'line', source: 'route', layout: { 'line-cap': 'round', 'line-join': 'round' }, paint: { 'line-color': '#FF6FE6', 'line-width': 2.6 } },
@@ -245,13 +245,13 @@
       island.once('load', go); district.once('load', go);
       island.on('mousemove', 'dim', e => {
         const f = e.features[0];
-        if (!S.open) { if (scrollY < 60 && !isPhone()) plateHover(f.properties.slug, e.point); return; }
+        if (!S.open) { if (!isPhone() && atRest()) plateHover(f.properties.slug, e.point); return; }
         if (S.lifted || isPhone()) return;
         hover(f.properties.slug, e.point);
       });
       island.on('mouseleave', 'dim', () => { if (!S.preview) hotLine(''); $('m-tip').hidden = true; $('j-tip').hidden = true; });
       island.on('click', e => {
-        if (!S.open) { if (scrollY < 60) expand(); return; }
+        if (!S.open) { if (atRest()) { const d = island.queryRenderedFeatures(e.point, { layers: ['dim'] })[0]; if (scrollY > 60 && d) { expand(); lift(d.properties.slug); } else expand(); } return; }
         if (S.lifted) return;
         const f = island.queryRenderedFeatures(e.point, { layers: ['dim'] })[0];
         if (f) pickDistrict(f.properties.slug, e.point);
@@ -277,6 +277,7 @@
     tip.style.transform = `translate(${Math.min(pt.x + 16, innerWidth - 260)}px, ${pt.y + 16}px)`;
   }
 
+  const atRest = () => (window.CWJourney && journeyOn ? CWJourney.atRest() : scrollY < 60);
   function plateHover(slug, pt) {
     hotLine(slug);
     const tip = $('j-tip'), m = dMeta(slug); tip.hidden = false;
@@ -971,6 +972,7 @@
   }
   async function routeFromUrl() {
     const m = location.hash.match(/^#map(?:\/([a-z-]+))?(?:\/([a-z0-9-]+))?/); if (!m) return;
+    if (m[1] === 'trip') { expand(); setMode('plan'); return; }
     expand();
     if (m[2]) await needListings();
     if (m[1] && dMeta(m[1])) lift(m[1], m[2] && byId(m[2]) ? m[2] : undefined);

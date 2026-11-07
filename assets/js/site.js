@@ -1,94 +1,135 @@
-/* Ceylonways site behaviour: navigation, add to trip, package filters. */
+/* Ceylonways site behaviour: the dock, the scene that answers the page, the budget slider, add to trip, package filters. */
 (function () {
   'use strict';
   const $$ = (s, el) => Array.from((el || document).querySelectorAll(s));
+  const hoverable = matchMedia('(hover: hover) and (min-width: 1001px)').matches;
 
-  /* ---------- Navigation ---------- */
-  const toggle = document.querySelector('.menu-toggle');
-  const siteNav = document.getElementById('site-nav');
-  const groups = $$('.nav-group');
-  const closeGroups = except => groups.forEach(g => { if (g !== except) { g.classList.remove('open'); g.querySelector('.nav-trigger').setAttribute('aria-expanded', 'false'); } });
-  groups.forEach(g => {
-    const btn = g.querySelector('.nav-trigger');
-    btn.addEventListener('click', () => {
-      const open = !g.classList.contains('open');
-      closeGroups(g); g.classList.toggle('open', open); btn.setAttribute('aria-expanded', String(open));
-    });
-    g.addEventListener('keydown', e => { if (e.key === 'Escape' && g.classList.contains('open')) { closeGroups(); btn.focus(); } });
-    if (matchMedia('(hover: hover) and (min-width: 1081px)').matches) {
-      let t;
-      g.addEventListener('mouseenter', () => { clearTimeout(t); closeGroups(g); g.classList.add('open'); btn.setAttribute('aria-expanded', 'true'); });
-      g.addEventListener('mouseleave', () => { t = setTimeout(() => { g.classList.remove('open'); btn.setAttribute('aria-expanded', 'false'); }, 180); });
-    }
-  });
-  document.addEventListener('click', e => { if (!e.target.closest('.nav-group')) closeGroups(); });
-  if (toggle) {
-    toggle.addEventListener('click', () => {
-      const open = toggle.getAttribute('aria-expanded') !== 'true';
-      toggle.setAttribute('aria-expanded', String(open)); siteNav.classList.toggle('open', open);
-      document.body.style.overflow = open ? 'hidden' : '';
-      toggle.querySelector('.menu-label').textContent = open ? 'Close' : 'Menu';
-      header.classList.toggle('is-menu', open); paint();
-    });
-    document.addEventListener('keydown', e => { if (e.key === 'Escape' && siteNav.classList.contains('open')) { toggle.click(); toggle.focus(); } });
-    siteNav.addEventListener('click', e => { if (e.target.closest('a') && siteNav.classList.contains('open')) toggle.click(); });
-  }
-
-  /* ---------- The header turns solid once the map plate has scrolled past ---------- */
-  const header = document.querySelector('.site-header');
-  const journey = document.getElementById('journey');
-  let lastY = scrollY;
-  const paint = () => {
-    const menu = header.classList.contains('is-menu');
-    header.classList.toggle('is-scrolled', scrollY > 40 || menu);
-    if (journey) {
-      const inside = scrollY > 80 && scrollY < journey.offsetHeight - innerHeight;
-      if (Math.abs(scrollY - lastY) > 6) { header.classList.toggle('is-away', inside && scrollY > lastY && !menu); lastY = scrollY; }
-      if (!inside) header.classList.remove('is-away');
-    }
+  /* ---------- The dock ---------- */
+  const veil = document.querySelector('.dock-veil');
+  const openers = $$('.dock [aria-controls]');
+  const close = back => {
+    openers.forEach(b => { if (b.getAttribute('aria-expanded') === 'true') { b.setAttribute('aria-expanded', 'false'); document.getElementById(b.getAttribute('aria-controls')).classList.remove('is-open'); if (back) b.focus(); } });
+    veil.classList.remove('is-on');
   };
-  addEventListener('scroll', paint, { passive: true });
-  paint();
+  openers.forEach(b => b.addEventListener('click', () => {
+    const was = b.getAttribute('aria-expanded') === 'true';
+    close();
+    if (was) return;
+    const panel = document.getElementById(b.getAttribute('aria-controls'));
+    b.setAttribute('aria-expanded', 'true'); panel.classList.add('is-open'); veil.classList.add('is-on');
+    const first = panel.querySelector('li a'); if (first) first.focus({ preventScroll: true });
+  }));
+  veil.addEventListener('click', () => close());
+  $$('.dock-close').forEach(b => b.addEventListener('click', () => close(true)));
+  document.addEventListener('keydown', e => { if (e.key === 'Escape') close(true); });
+  $$('.dock-panel a').forEach(a => a.addEventListener('click', () => close()));
 
-  /* ---------- Districts: the list and the map answer each other ---------- */
-  const atlas = document.querySelector('.atlas');
-  if (atlas) {
-    const mark = (slug, on) => $$(`[data-d="${slug}"]`, atlas).forEach(e => e.classList.toggle('is-on', on));
-    ['pointerover', 'focusin'].forEach(n => atlas.addEventListener(n, e => { const a = e.target.closest('[data-d]'); if (a) mark(a.dataset.d, true); }));
-    ['pointerout', 'focusout'].forEach(n => atlas.addEventListener(n, e => { const a = e.target.closest('[data-d]'); if (a) mark(a.dataset.d, false); }));
+  /* ---------- My trip: the count follows you from page to page ---------- */
+  const KEY = 'ceylonways-map-trip-v1';
+  const loadTrip = () => { try { return JSON.parse(localStorage.getItem(KEY)) || {}; } catch (e) { return {}; } };
+  const paintCount = () => {
+    const n = (loadTrip().stops || []).length, a = document.querySelector('[data-my-trip]');
+    a.querySelector('[data-trip-count]').textContent = n;
+    a.href = a.dataset.root + (n ? 'index.html#map/trip' : 'plan.html');
+  };
+  paintCount();
+  addEventListener('storage', paintCount);
+  addEventListener('cw-trip', paintCount);
+
+  /* ---------- The scene answers the page ---------- */
+  const scene = document.querySelector('.scene');
+  const sheet = document.getElementById('sheet');
+  if (scene && sheet) {
+    let media = scene.querySelector('.scene-media');
+    const note = scene.querySelector('.scene-note');
+    const firstNote = note ? note.innerHTML : '';
+    const first = media && media.querySelector('img');
+    let shown = first ? first.currentSrc || first.src : '';
+    // Two pictures take turns, so one can fade over the other.
+    const swap = (src, alt, noteHtml) => {
+      if (!media || !src || shown.endsWith(src.replace(/^(\.\.\/)+/, ''))) return;
+      shown = src;
+      const img = new Image(); img.alt = ''; img.className = 'is-out'; img.src = src;
+      img.decode().catch(() => {}).then(() => {
+        if (shown !== src) return;
+        media.appendChild(img);
+        requestAnimationFrame(() => requestAnimationFrame(() => { img.classList.remove('is-out'); }));
+        setTimeout(() => { while (media.children.length > 1 && media.firstElementChild !== img) media.firstElementChild.remove(); }, 650);
+      });
+      if (note) note.innerHTML = noteHtml || '';
+    };
+    const fromEl = el => {
+      const fig = el.dataset.fig && document.getElementById(el.dataset.fig);
+      swap(el.dataset.scene, el.dataset.sceneAlt, fig ? fig.querySelector('figcaption').innerHTML : '');
+    };
+    const targets = $$('[data-scene]', sheet);
+    // Reading: the picture changes when a section reaches the middle of the screen.
+    const reading = targets.filter(el => !el.classList.contains('row'));
+    if (reading.length) {
+      const seen = new IntersectionObserver(list => list.forEach(e => { if (e.isIntersecting) fromEl(e.target); }), { rootMargin: '-40% 0px -50% 0px' });
+      reading.forEach(el => seen.observe(el));
+    }
+    // Lists: the picture follows what you point at, or what crosses the middle of a phone screen.
+    const rows = targets.filter(el => el.classList.contains('row'));
+    if (rows.length) {
+      if (hoverable) ['pointerover', 'focusin'].forEach(n => sheet.addEventListener(n, e => { const a = e.target.closest('.row[data-scene]'); if (a) fromEl(a); }));
+      else { const seen = new IntersectionObserver(list => list.forEach(e => { if (e.isIntersecting) fromEl(e.target); }), { rootMargin: '-52% 0px -40% 0px' }); rows.forEach(el => seen.observe(el)); }
+    }
+    // Route maps on the trips pages
+    const routes = scene.querySelector('[data-routes]');
+    if (routes) {
+      const show = slug => $$('[data-route]', routes).forEach(d => { d.hidden = d.dataset.route !== slug; });
+      ['pointerover', 'focusin'].forEach(n => sheet.addEventListener(n, e => { const a = e.target.closest('[data-trip]'); if (a) show(a.dataset.trip); }));
+    }
+    // Districts: the list and the map answer each other
+    if (scene.classList.contains('scene-atlas')) {
+      const mark = (slug, on) => $$(`[data-d="${slug}"]`).forEach(e => e.classList.toggle('is-on', on));
+      ['pointerover', 'focusin'].forEach(n => document.addEventListener(n, e => { const a = e.target.closest('[data-d]'); if (a) mark(a.dataset.d, true); }));
+      ['pointerout', 'focusout'].forEach(n => document.addEventListener(n, e => { const a = e.target.closest('[data-d]'); if (a) mark(a.dataset.d, false); }));
+    }
+    // Places: pointing at a row lights its dot on the island
+    const name = scene.querySelector('[data-hub-name]');
+    if (name) {
+      const mark = (a, on) => { const c = scene.querySelector(`circle[data-p="${a.dataset.p}"]`); if (c) c.classList.toggle('is-on', on); name.textContent = on ? a.dataset.n : ''; };
+      ['pointerover', 'focusin'].forEach(n => sheet.addEventListener(n, e => { const a = e.target.closest('a[data-p]'); if (a) mark(a, true); }));
+      ['pointerout', 'focusout'].forEach(n => sheet.addEventListener(n, e => { const a = e.target.closest('a[data-p]'); if (a) mark(a, false); }));
+    }
+    void firstNote;
   }
 
-  /* ---------- Places hub: pointing at a card lights its dot on the island ---------- */
-  const hub = document.querySelector('.hub');
-  if (hub) {
-    const name = hub.querySelector('[data-hub-name]'), first = name.textContent;
-    const mark = (a, on) => { const c = hub.querySelector(`circle[data-p="${a.dataset.p}"]`); if (c) c.classList.toggle('is-on', on); name.textContent = on ? a.dataset.n : first; };
-    ['pointerover', 'focusin'].forEach(n => hub.addEventListener(n, e => { const a = e.target.closest('a[data-p]'); if (a) mark(a, true); }));
-    ['pointerout', 'focusout'].forEach(n => hub.addEventListener(n, e => { const a = e.target.closest('a[data-p]'); if (a) mark(a, false); }));
-  }
-
-  /* ---------- Place index: the photo follows what you point at ---------- */
-  const gaz = document.querySelector('.gaz-wrap');
-  if (gaz && matchMedia('(hover: hover)').matches) {
-    const img = gaz.querySelector('.gaz-photo img');
-    const show = a => { if (img.getAttribute('src') !== a.dataset.preview) { img.classList.remove('is-in'); img.onload = () => img.classList.add('is-in'); img.src = a.dataset.preview; img.alt = ''; } img.hidden = false; };
-    ['pointerover', 'focusin'].forEach(n => gaz.addEventListener(n, e => { const a = e.target.closest('a[data-preview]'); if (a) show(a); }));
+  /* ---------- Within your budget ---------- */
+  const budget = document.querySelector('.budget');
+  if (budget) {
+    const data = JSON.parse(budget.dataset.budget), root = budget.dataset.root;
+    const range = budget.querySelector('input'), out = budget.querySelector('output'), list = budget.querySelector('ul');
+    const money = n => 'US$' + n.toLocaleString('en-US');
+    const LEVELS = [['luxury', 'luxury stays'], ['boutique', 'boutique stays'], ['simple', 'simple stays']];
+    const paint = () => {
+      const v = Number(range.value);
+      out.textContent = money(v);
+      list.innerHTML = data.map(t => {
+        const fit = LEVELS.find(([k]) => t.t[k] <= v);
+        return fit ? { t, html: `<li><a href="${root}plan.html?package=${t.s}">${t.n}</a><span>${t.d} days with ${fit[1]}, about ${money(t.t[fit[0]])}</span></li>`, ok: 1, c: t.t[fit[0]] }
+          : { t, html: `<li class="is-over"><a href="${root}plan.html?package=${t.s}">${t.n}</a><span>Needs about ${money(t.t.simple)}</span></li>`, ok: 0, c: t.t.simple };
+      }).sort((a, b) => b.ok - a.ok || a.c - b.c).map(x => x.html).join('');
+    };
+    range.addEventListener('input', paint);
+    paint();
   }
 
   /* ---------- Add to My Trip from a place page ---------- */
   const tripBtn = document.querySelector('[data-trip-add]');
   if (tripBtn) {
-    const KEY = 'ceylonways-map-trip-v1', note = document.querySelector('[data-trip-status]');
-    const load = () => { try { return JSON.parse(localStorage.getItem(KEY)) || {}; } catch (e) { return {}; } };
-    const paintTrip = () => { const on = (load().stops || []).includes(tripBtn.dataset.tripAdd); tripBtn.textContent = on ? 'Added. Undo' : 'Add to my trip'; };
+    const note = document.querySelector('[data-trip-status]');
+    const paintTrip = () => { const on = (loadTrip().stops || []).includes(tripBtn.dataset.tripAdd); tripBtn.textContent = on ? 'Added. Undo' : 'Add to my trip'; };
     tripBtn.hidden = false; paintTrip();
     tripBtn.addEventListener('click', () => {
-      const t = load(), id = tripBtn.dataset.tripAdd, d = tripBtn.dataset.tripDistrict;
+      const t = loadTrip(), id = tripBtn.dataset.tripAdd, d = tripBtn.dataset.tripDistrict;
       t.stops = t.stops || []; t.districts = t.districts || [];
       const i = t.stops.indexOf(id);
       if (i < 0) { t.stops.push(id); if (!t.districts.includes(d)) t.districts.push(d); } else t.stops.splice(i, 1);
       try { localStorage.setItem(KEY, JSON.stringify(t)); note.textContent = i < 0 ? `Added. ${t.stops.length} stop${t.stops.length > 1 ? 's' : ''} in My trip on the map.` : 'Removed from My trip.'; } catch (e) { note.textContent = 'This browser blocked saving.'; }
-      paintTrip();
+      paintTrip(); paintCount();
     });
   }
 
