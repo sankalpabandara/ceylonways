@@ -135,6 +135,7 @@
     if (new URLSearchParams(location.search).get('map') === 'simple') return false;
     try { if (read('ceylonways-simple-map')) return false; } catch (e) { /* ignore */ }
     const c = document.createElement('canvas');
+    try { if (sessionStorage.getItem('cw-simple')) return false; } catch (e) {}
     if (!c.getContext('webgl2')) return false;
     if (navigator.connection && navigator.connection.saveData) return false;
     if (navigator.deviceMemory && navigator.deviceMemory <= 2) return false;
@@ -166,8 +167,16 @@
 
   /* ---------- Maps ---------- */
   const terrain = () => ({ type: 'raster-dem', tiles: [tiles('assets/map/terrain/{z}/{x}/{y}.webp')], tileSize: 256, encoding: 'terrarium', minzoom: 6, maxzoom: 11, bounds: BOUNDS });
+  // The height you can always see: a phone's address bar comes and goes, and the stage runs on under it so the land fills the screen.
+  const seeProbe = document.createElement('div');
+  seeProbe.style.cssText = 'position:absolute;left:-9px;top:0;width:1px;height:100vh;height:100svh;visibility:hidden;pointer-events:none';
+  document.body.appendChild(seeProbe);
+  const seeH = () => seeProbe.offsetHeight || innerHeight;
+  const underBar = () => Math.max(0, stage.clientHeight - seeH());
+  // On a phone the island stands in the space above the words at the foot of the first screen.
+  const plateGap = () => { const f = document.querySelector('.m-foot'), h = seeH(); return (f ? h - f.offsetTop + 10 : Math.round(h * .33)) + underBar(); };
   const camPad = () => {
-    if (!S.open) return isPhone() ? { top: Math.round(innerHeight * .15), bottom: Math.round(innerHeight * .33), left: 16, right: 16 } : { top: 10, bottom: 84, left: 60, right: 60 };
+    if (!S.open) return innerWidth <= 1000 && seeH() > 480 ? { top: Math.round(seeH() * .15), bottom: plateGap(), left: 16, right: 16 } : { top: 10, bottom: 84 + underBar(), left: 60, right: 60 };
     return isPhone() ? { top: 70, bottom: 170, left: 10, right: 10 } : { top: 70, bottom: 40, left: 40, right: 460 };
   };
   const islandCam = () => { const p = S.open ? 45 : 46, b = S.open ? 0 : -12, c = island.cameraForBounds([[79.55, 5.85], [81.95, 9.9]], { padding: camPad(), pitch: p, bearing: b }); return { center: c.center, zoom: c.zoom, pitch: p, bearing: b, padding: { top: 0, bottom: 0, left: 0, right: 0 } }; };
@@ -189,10 +198,25 @@
     });
   }
 
+  // A phone takes the graphics chip back when you switch apps or lock the screen, and the land does not survive that.
+  // So the page starts again where you were, once you can see it. If it keeps happening while you watch, this phone gets the simple map.
+  let glLost = false, glWatched = false;
+  function comeBack() {
+    if (!glLost || document.hidden) return;
+    glLost = false;
+    if (glWatched) try {
+      if (Date.now() - Number(sessionStorage.getItem('cw-gl') || 0) < 30000) sessionStorage.setItem('cw-simple', '1');
+      sessionStorage.setItem('cw-gl', String(Date.now()));
+    } catch (e) {}
+    location.reload();
+  }
+  document.addEventListener('visibilitychange', comeBack);
+  addEventListener('pageshow', comeBack);
+
   function createMaps() {
     return new Promise((resolve, reject) => {
       maplibregl.addProtocol('cw', joinTile);
-      const opts = { attributionControl: false, center: [80.7, 7.8], zoom: 6.6, pitch: 30, maxZoom: 12.5, minZoom: 5.5, maxPitch: 70, pixelRatio: Math.min(devicePixelRatio || 1, isPhone() ? 1.5 : 2), canvasContextAttributes: { antialias: true }, transformRequest: tileRequest };
+      const opts = { attributionControl: false, center: [80.7, 7.8], zoom: 6.6, pitch: 30, maxZoom: 12.5, minZoom: 5.5, maxPitch: 70, pixelRatio: Math.min(devicePixelRatio || 1, Math.min(innerWidth, innerHeight) <= 720 ? 1.5 : 2), canvasContextAttributes: { antialias: true }, transformRequest: tileRequest };
       island = new maplibregl.Map(Object.assign({ container: 'm-island', style: {
         version: 8,
         sources: {
@@ -256,7 +280,9 @@
         const f = island.queryRenderedFeatures(e.point, { layers: ['dim'] })[0];
         if (f) pickDistrict(f.properties.slug, e.point);
       });
-      addEventListener('resize', () => { if (!island) return; island.resize(); district.resize(); if (!S.lifted && !S.routeOn) island.jumpTo(islandCam()); });
+      // While the drive runs it owns the camera, and the map follows its own container. The address bar fires this event too.
+      addEventListener('resize', () => { if (!island || (journeyOn && !S.open)) return; island.resize(); district.resize(); if (!S.lifted && !S.routeOn) island.jumpTo(islandCam()); });
+      [island, district].forEach(m => m.on('webglcontextlost', () => { glLost = true; glWatched = !document.hidden; setTimeout(comeBack, 300); }));
       window.__map = { island, district, S, trip, listedCount: () => listed.length, anyListedName: () => listed.find(l => l.types[0] !== 'stay' && /^[A-Za-z ]+$/.test(l.name)).name, nameOf: id => byId(id).name };
     });
   }
@@ -983,7 +1009,7 @@
     $('m-explore').onclick = () => expand(); $('m-tap').onclick = () => expand();
     if (!simple && !reduce && window.CWJourney) {
       journeyOn = true;
-      CWJourney.start({ tileThere, freeMarker, skirt: SKIRT, island, stage, islandCam, isPhone, asset: tiles, meta, imagery: IMAGERY, isOpen: () => S.open }).catch(e => {
+      CWJourney.start({ tileThere, freeMarker, skirt: SKIRT, island, stage, islandCam, isPhone, seeH, plateGap, asset: tiles, meta, imagery: IMAGERY, isOpen: () => S.open }).catch(e => {
         console.warn(e); journeyOn = false; document.documentElement.classList.add('no-journey'); startDrift();
       }).then(routeFromUrl);
     } else {

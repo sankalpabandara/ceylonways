@@ -50,7 +50,7 @@
 
   let A = null, map = null, data = null, keys = [], steps = [], end = 0, vh = 0, y = 0, last = 0, raf = 0, paused = false, ready = false;
   const look = { b: 0, p: 0, drag: null };
-  let flying = false;
+  let flying = false, settled = false, stageH = 0, little = false;
   let idle = 0, px = 0, py = 0, cx = 0, cy = 0, drawnKm = -1, skyKey = '', seaOn = -1, lineOn = -1, month = -1, head = null, labels = [], sharpOn = false, phone = false, topCam = null;
   const hud = { km: $('j-km'), ele: $('j-ele'), day: $('j-day'), fill: $('j-fill'), dot: $('j-dot') };
   const seen = { km: '', ele: '', day: '' };
@@ -59,7 +59,9 @@
   const dayAt = km => (km <= 150 ? 1 : km <= 240 ? 3 : km <= 377 ? 4 : km <= 581 ? 6 : 7);
 
   function measure() {
-    vh = innerHeight; phone = A.isPhone();
+    // Phones hide and show their address bar while you scroll. vh is the height with the bar showing, so it never changes,
+    // and the stage runs on under the bar, so the land always fills the screen.
+    vh = A.seeH(); stageH = A.stage.clientHeight || vh; phone = A.isPhone(); little = Math.min(innerWidth, innerHeight) <= 720; // a phone on its side is still a phone
     const top = wrap.getBoundingClientRect().top + scrollY;
     steps = [...wrap.querySelectorAll('.step')].map(el => {
       const r = el.getBoundingClientRect(), t = r.top + scrollY - top;
@@ -67,11 +69,13 @@
       const box = nm ? { bottom: nm.offsetTop + nm.offsetHeight, right: nm.offsetLeft + Math.min(nm.offsetWidth, nm.textContent.length * nm.offsetHeight * .5) } : null;
       return { el, nm, box, inner: el.querySelector('.step-in'), top: t, h: r.height, shot: el.dataset.shot, hold: el.dataset.shot === 'atlas' ? t + vh * .1 : t + Math.max(0, (r.height - vh) / 2) };
     });
-    const fit = (pad, p, b) => { const f = map.cameraForBounds([[79.55, 5.85], [81.95, 9.9]], { padding: pad, pitch: p, bearing: b }), c = maplibregl.LngLat.convert(f.center); return { c: [c.lng, c.lat], z: f.zoom, p, b, el: 0 }; };
-    const W = innerWidth, narrow = W <= 1000;
-    const first = phone ? fit({ top: Math.round(vh * .15), bottom: Math.round(vh * .33), left: 16, right: 16 }, 46, -12) : fit({ top: 10, bottom: 84, left: 60, right: 60 }, 48, -12);
-    const beside = narrow ? fit({ top: 16, bottom: Math.round(vh * .58), left: 30, right: 30 }, 20, 0) : fit({ top: 40, bottom: 100, left: 30, right: Math.round(W * .58) }, 24, 0);
-    keys = steps.map((s, i) => Object.assign({ y: s.hold, id: s.shot }, SHOTS[s.shot], SHOTS[s.shot].top ? (i ? beside : first) : null));
+    const fit = (pad, p, b) => { pad.bottom = Math.min(pad.bottom, stageH - pad.top - 90); const f = map.cameraForBounds([[79.55, 5.85], [81.95, 9.9]], { padding: pad, pitch: p, bearing: b }); if (!f) return { c: [80.7, 7.8], z: 6, p, b, el: 0 }; const c = maplibregl.LngLat.convert(f.center); return { c: [c.lng, c.lat], z: Math.max(LOWEST, f.zoom), p, b, el: 0 }; };
+    const W = innerWidth, sideways = vh <= 480 && W > 560, over = stageH - vh, under = !sideways && W <= 1000;
+    const first = under ? fit({ top: Math.round(vh * .15), bottom: A.plateGap(), left: 16, right: 16 }, 46, -12) : fit({ top: 10, bottom: 84 + over, left: 60, right: 60 }, 48, -12);
+    const beside = fit({ top: sideways ? 12 : 40, bottom: (sideways ? 20 : 100) + over, left: 30, right: Math.round(W * .58) }, 24, 0);
+    // On a narrow screen the island stands above the words, so each stop keeps it clear of its own text.
+    const above = s => { const c = s.el.querySelector('.step-copy'); return fit({ top: 16, bottom: Math.max(Math.round(vh * .58), c ? vh - c.offsetTop + 10 : 0) + over, left: 30, right: 30 }, 20, 0); };
+    keys = steps.map((s, i) => Object.assign({ y: s.hold, id: s.shot }, SHOTS[s.shot], SHOTS[s.shot].top ? (i ? (under ? above(s) : beside) : first) : null));
     keys[0].y = 0;
     end = steps[steps.length - 1].top + steps[steps.length - 1].h - vh;
     if (phone) keys.forEach(k => { if (!k.top) k.z -= .35; });
@@ -93,7 +97,7 @@
       bearing: lerp(a.b, b.b, t) + orbit,
       elevation: lerp(a.el, b.el, t)
     };
-    if (!phone) { cam.bearing += cx * 1.6 + Math.sin(now / 9000) * .5; cam.pitch = clamp(cam.pitch - cy * 1, 0, 82); }
+    if (!little) { cam.bearing += cx * 1.6 + Math.sin(now / 9000) * .5; cam.pitch = clamp(cam.pitch - cy * 1, 0, 82); }
     cam.bearing += look.b; cam.pitch = clamp(cam.pitch + look.p, 0, 82);
     return { cam, a, b, t, raw };
   }
@@ -152,9 +156,9 @@
     const w = (LIGHT[a.light].sun ? 1 - t : 0) + (LIGHT[b.light].sun ? t : 0), el = $('j-sun');
     if (w < .02) { if (el.style.opacity !== '0') el.style.opacity = 0; return; }
     const az = LIGHT[b.light].sun && t > .5 || !LIGHT[a.light].sun ? LIGHT[b.light].sun : LIGHT[a.light].sun;
-    const off = (((az - cam.bearing) % 360) + 540) % 360 - 180, W = innerWidth, x = W / 2 + off / (37 * W / innerHeight) * W;
+    const off = (((az - cam.bearing) % 360) + 540) % 360 - 180, W = innerWidth, x = W / 2 + off / (37 * W / stageH) * W;
     // The horizon sits where the view line is level: 90 degrees minus the pitch above the centre of a 36.87 degree view.
-    const y = innerHeight / 2 * (1 - Math.tan((90 - cam.pitch) * Math.PI / 180) / .3333);
+    const y = stageH / 2 * (1 - Math.tan((90 - cam.pitch) * Math.PI / 180) / .3333);
     el.style.opacity = (w * clamp(1 - Math.abs(off) / 60, 0, 1)).toFixed(3);
     el.style.transform = `translate3d(${x.toFixed(1)}px,${y.toFixed(1)}px,0)`;
   }
@@ -188,7 +192,7 @@
   async function soundToggle() {
     snd.on = !snd.on;
     document.querySelectorAll('[data-sound]').forEach(b => b.setAttribute('aria-pressed', String(snd.on)));
-    if (snd.on) { const ok = await soundStart().catch(() => false); if (!ok) { snd.on = false; document.querySelectorAll('[data-sound]').forEach(b => { b.setAttribute('aria-pressed', 'false'); b.hidden = true; }); return; } snd.last = [-1, -1, -1]; render(y, performance.now()); } else soundStop();
+    if (snd.on) { const ok = await soundStart().catch(() => false); if (!ok) { snd.on = false; document.querySelectorAll('[data-sound]').forEach(b => { b.setAttribute('aria-pressed', 'false'); b.hidden = true; }); return; } snd.last = [-1, -1, -1]; render(y, performance.now(), true); } else soundStop();
   }
 
   function clouds(amount, scroll) {
@@ -215,7 +219,7 @@
   }
 
   function marks(cam) {
-    const reach = phone ? .24 : .34, low = cam.zoom > 9.8 && month < 0, W = innerWidth, H = innerHeight, placed = [];
+    const reach = phone ? .24 : .34, low = cam.zoom > 9.8 && month < 0, W = innerWidth, H = vh, placed = [];
     // The giant name of the stop fills the sky, so a label must stand clear of it.
     const box = (steps.find(s => s.nm && y >= s.top - vh * .32 && y < s.top + s.h - vh * .68) || {}).box;
     for (const l of labels) {
@@ -251,7 +255,11 @@
     r.setAttribute('aria-valuetext', MONTHS[i]);
   }
 
-  function render(scroll, now) {
+  function render(scroll, now, force) {
+    // Past the last stop the camera has arrived. Reading the sheet must not redraw the land on every frame.
+    const arrived = scroll >= keys[keys.length - 1].y && !look.drag && Math.abs(look.b) + Math.abs(look.p) < .02;
+    if (arrived && settled && !force) { panels(scroll); return; }
+    settled = arrived;
     const f = camera(scroll, now);
     map.jumpTo(f.cam);
     light(f.a, f.b, f.t);
@@ -283,7 +291,7 @@
     cx += (px - cx) * (1 - Math.exp(-dt / 400)); cy += (py - cy) * (1 - Math.exp(-dt / 400));
     if (y > end + 4 && !moved) return; // the stage has scrolled away, so nothing needs drawing
     if (moved) steady(gap);
-    if (!moved && (phone || ++idle & 3)) return; // at rest the land only sways, so a quarter of the frames is enough
+    if (!moved && (little || ++idle & 3)) return; // at rest the land only sways, so a quarter of the frames is enough
     render(Math.min(y, end), now);
   }
 
@@ -297,6 +305,8 @@
     if (ms > 36 && pace.now > floor) { pace.now = Math.max(floor, pace.now * .8); map.setPixelRatio(pace.now); }
   }
 
+  // A short phone needs the island small above the words. Below this zoom the imagery has no tiles.
+  const LOWEST = 5;
   // Far land sits in the fog, so the map can load 40 percent fewer tiles with no visible change.
   const DETAIL = [9.314, 1.5];
 
@@ -304,7 +314,7 @@
   function addSharp() {
     sharpOn = true;
     document.querySelectorAll('.j-clouds img').forEach(i => { i.src = i.dataset.cloud; });
-    map.addSource('j-land', { type: 'raster', tiles: ['cw://land/{z}/{x}/{y}'], tileSize: 256, minzoom: 6, maxzoom: phone ? 12 : 13, bounds: [79.4, 5.75, 82.1, 10] });
+    map.addSource('j-land', { type: 'raster', tiles: ['cw://land/{z}/{x}/{y}'], tileSize: 256, minzoom: 6, maxzoom: little ? 12 : 13, bounds: [79.4, 5.75, 82.1, 10] });
     map.addLayer({ id: 'j-land', type: 'raster', source: 'j-land', minzoom: 9.2, paint: Object.assign({}, A.imagery, { 'raster-fade-duration': 150 }) }, 'dim');
     map.setSourceTileLodParams(...DETAIL, 'j-land');
   }
@@ -314,7 +324,7 @@
   function warm(k) {
     const net = navigator.connection;
     if (k.top || !k.c || (net && (net.saveData || /2g/.test(net.effectiveType || '')))) return;
-    const top = phone ? 12 : 13, lat = k.c[1] * Math.PI / 180;
+    const top = little ? 12 : 13, lat = k.c[1] * Math.PI / 180;
     warmQ.length = 0;
     for (let z = top; z >= top - 2; z--) {
       const n = 2 ** z, fx = (k.c[0] + 180) / 360 * n, fy = (1 - Math.asinh(Math.tan(lat)) / Math.PI) / 2 * n;
@@ -369,24 +379,19 @@
     if (trip) {
       trips = trips || await fetch(A.asset('assets/map/trips.json')).then(r => r.json()).catch(() => ({}));
       if (tripOn === trip && trips[trip]) map.getSource('j-route').setData({ type: 'Feature', properties: {}, geometry: { type: 'LineString', coordinates: trips[trip] } });
-    } else { drawnKm = -1; render(Math.min(y, end), performance.now()); }
+    } else { drawnKm = -1; render(Math.min(y, end), performance.now(), true); }
   }
   function sheetRows() {
     const sheet = document.querySelector('.atlas-sheet'); if (!sheet) return;
-    const rows = [...sheet.querySelectorAll('[data-area], [data-trip]')];
-    if (matchMedia('(hover: hover) and (min-width: 1001px)').matches) {
-      ['pointerover', 'focusin'].forEach(n => sheet.addEventListener(n, e => { const r = e.target.closest('[data-area], [data-trip]'); if (r) pointAt(r); }));
-      sheet.addEventListener('pointerleave', () => pointAt(null));
-    } else {
-      const seen = new IntersectionObserver(l => l.forEach(e => { if (e.isIntersecting) pointAt(e.target); }), { rootMargin: '-56% 0px -30% 0px' });
-      rows.forEach(r => seen.observe(r));
-    }
+    if (!matchMedia('(hover: hover) and (min-width: 1001px)').matches) return; // on a phone the sheet covers the island, so lighting it is wasted work
+    ['pointerover', 'focusin'].forEach(n => sheet.addEventListener(n, e => { const r = e.target.closest('[data-area], [data-trip]'); if (r) pointAt(r); }));
+    sheet.addEventListener('pointerleave', () => pointAt(null));
   }
 
   async function start(api) {
     A = api; map = api.island;
     data = await fetch(A.asset('assets/map/journey.json')).then(r => r.json());
-    map.setMaxPitch(82);
+    map.setMaxPitch(82); map.setMinZoom(LOWEST);
     map.setCenterClampedToGround(false);
     map.setSourceTileLodParams(...DETAIL);
     layers(); hudDraw(); measure(); keepLand();
@@ -397,7 +402,11 @@
       map.addLayer({ id: 'j-depth', type: 'line', source: 'j-depths', layout: { visibility: paused ? 'visible' : 'none' }, paint: { 'line-color': '#FFFFFF', 'line-width': .7, 'line-opacity': ['interpolate', ['linear'], ['get', 'd'], 200, .3, 1000, .2, 4000, .1] } }, 'sat');
       redraw();
     }).catch(() => {});
-    addEventListener('resize', () => { if (!paused) { measure(); } });
+    // The address bar fires resize too. Only a real change of layout may move the camera path, and the map must be drawn again after one.
+    const redo = () => { if (paused) return; measure(); settled = false; render(Math.min(y, end), performance.now(), true); };
+    let seenW = innerWidth, seenH = vh;
+    addEventListener('resize', () => { const h = A.seeH(); if (innerWidth === seenW && h === seenH) return; seenW = innerWidth; seenH = h; if (!paused) map.resize(); });
+    map.on('resize', redo);
     addEventListener('pointermove', e => { if (e.pointerType === 'mouse') { px = e.clientX / innerWidth * 2 - 1; py = e.clientY / innerHeight * 2 - 1; } }, { passive: true });
     // Drag to look around. Sideways only on touch, so the page still scrolls under the thumb.
     A.stage.addEventListener('pointerdown', e => { if (e.target.closest('a,button,input') || scrollY < vh * .2 || A.isOpen()) return; look.drag = { x: e.clientX, y: e.clientY, b: look.b, p: look.p, touch: e.pointerType !== 'mouse' }; wrap.classList.add('is-looking'); });
@@ -418,7 +427,7 @@
     });
     sheetRows();
     wrap.classList.add('is-live');
-    render(y, performance.now());
+    render(y, performance.now(), true);
     raf = requestAnimationFrame(frame);
     window.__journey = { keys: () => keys, end: () => end, y: () => y, month: () => month, data };
   }
@@ -427,7 +436,7 @@
     if (snd.on) { snd.master.gain.setTargetAtTime(.35, snd.ctx.currentTime, .4); soundMix([.5, .15, 0]); }
     map.setSky(undefined); skyKey = ''; seaOn = -1;
     skirt(A.skirt); if (pace.now !== pace.base) map.setPixelRatio(pace.base); map.setPaintProperty('j-sea', 'background-opacity', 0); map.setPaintProperty('lines', 'line-opacity', 1); if (map.getLayer('j-depth')) map.setLayoutProperty('j-depth', 'visibility', 'visible'); lineOn = -1; A.stage.style.backgroundColor = '';
-    map.setCenterClampedToGround(true); map.setMaxPitch(70);
+    map.setCenterClampedToGround(true); map.setMaxPitch(70); map.setMinZoom(5.5);
     show(false); head.getElement().firstChild.style.opacity = 0;
     labels.forEach(l => { l.el.style.opacity = 0; l.o = '0'; });
     setMonth(-1);
@@ -436,8 +445,9 @@
   }
   function resume() {
     if (!ready) return;
-    map.setMaxPitch(82); map.setCenterClampedToGround(false); show(true); if (map.getLayer('j-depth')) map.setLayoutProperty('j-depth', 'visibility', 'none'); if (pace.now !== pace.base) map.setPixelRatio(pace.now);
-    paused = false; y = scrollY; last = 0; drawnKm = -1; measure();
+    map.setMaxPitch(82); map.setMinZoom(LOWEST); map.setCenterClampedToGround(false); show(true); if (map.getLayer('j-depth')) map.setLayoutProperty('j-depth', 'visibility', 'none'); if (pace.now !== pace.base) map.setPixelRatio(pace.now);
+    paused = false; y = scrollY; last = 0; drawnKm = -1; settled = false; measure();
+    render(Math.min(y, end), performance.now(), true);
     if (snd.on) snd.master.gain.setTargetAtTime(.85, snd.ctx.currentTime, .4);
   }
   // True where the island takes clicks: on the first screen and beside the home sheet.

@@ -3,20 +3,21 @@
   'use strict';
   const $$ = (s, el) => Array.from((el || document).querySelectorAll(s));
   const hoverable = matchMedia('(hover: hover) and (min-width: 1001px)').matches;
+  const beside = matchMedia('(min-width: 1001px)').matches; // on a phone the sheet covers the scene, so a new picture there would be a download nobody sees
 
   /* ---------- The dock ---------- */
   const veil = document.querySelector('.dock-veil');
   const openers = $$('.dock [aria-controls]');
   const close = back => {
     openers.forEach(b => { if (b.getAttribute('aria-expanded') === 'true') { b.setAttribute('aria-expanded', 'false'); document.getElementById(b.getAttribute('aria-controls')).classList.remove('is-open'); if (back) b.focus(); } });
-    veil.classList.remove('is-on');
+    veil.classList.remove('is-on'); document.documentElement.classList.remove('has-panel');
   };
   openers.forEach(b => b.addEventListener('click', () => {
     const was = b.getAttribute('aria-expanded') === 'true';
     close();
     if (was) return;
     const panel = document.getElementById(b.getAttribute('aria-controls'));
-    b.setAttribute('aria-expanded', 'true'); panel.classList.add('is-open'); veil.classList.add('is-on');
+    b.setAttribute('aria-expanded', 'true'); panel.classList.add('is-open'); veil.classList.add('is-on'); document.documentElement.classList.add('has-panel');
     const first = panel.querySelector('li a'); if (first) first.focus({ preventScroll: true });
   }));
   veil.addEventListener('click', () => close());
@@ -62,7 +63,7 @@
       const fig = el.dataset.fig && document.getElementById(el.dataset.fig);
       swap(el.dataset.scene, el.dataset.sceneAlt, fig ? fig.querySelector('figcaption').innerHTML : '');
     };
-    const targets = $$('[data-scene]', sheet);
+    const targets = beside ? $$('[data-scene]', sheet) : [];
     // Reading: the picture changes when a section reaches the middle of the screen.
     const reading = targets.filter(el => !el.classList.contains('row'));
     if (reading.length) {

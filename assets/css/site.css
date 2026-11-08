@@ -38,9 +38,10 @@
   --ui: 'Yaldevi', 'Noto Sans Tamil', 'Iskoola Pota', 'Latha', 'Segoe UI', system-ui, sans-serif;
   --read: 'Abhaya Libre', 'Yaldevi', Georgia, serif;
   --dock: 64px;
+  --dock-h: calc(var(--dock) + env(safe-area-inset-bottom, 0px));
   --hud: 76px;
-  --gutter: clamp(16px, 3.2vw, 44px);
-  --sheet-x: clamp(20px, 4.6vw, 76px);
+  --gutter: max(clamp(16px, 3.2vw, 44px), env(safe-area-inset-left, 0px), env(safe-area-inset-right, 0px));
+  --sheet-x: max(clamp(20px, 4.6vw, 76px), env(safe-area-inset-right, 0px));
   --gap: clamp(16px, 2.2vw, 28px);
   --float: 0 2px 4px rgba(16, 46, 38, .16), 0 14px 34px rgba(16, 46, 38, .24);
   --ease: cubic-bezier(.2, .7, .2, 1);
@@ -49,8 +50,8 @@
 
 /* ---------- Base ---------- */
 *, *::before, *::after { box-sizing: border-box; }
-html { scroll-behavior: smooth; scroll-padding-top: 24px; scroll-padding-bottom: calc(var(--dock) + 24px); -webkit-text-size-adjust: 100%; background: var(--forest); }
-body { margin: 0; min-height: 100vh; padding-bottom: var(--dock); background: var(--forest); color: var(--ivory); font: 400 18px/1.45 var(--ui); overflow-x: clip; }
+html { scroll-behavior: smooth; scroll-padding-top: 24px; scroll-padding-bottom: calc(var(--dock-h) + 24px); -webkit-text-size-adjust: 100%; background: var(--forest); }
+body { margin: 0; min-height: 100vh; padding-bottom: var(--dock-h); background: var(--forest); color: var(--ivory); font: 400 18px/1.45 var(--ui); overflow-x: clip; }
 img { max-width: 100%; height: auto; display: block; }
 svg { display: block; }
 a { color: inherit; text-underline-offset: 4px; text-decoration-thickness: 2px; }
@@ -93,7 +94,7 @@ table { border-collapse: collapse; }
 .hero-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 12px 20px; margin: 0; }
 
 /* ---------- The dock: the menu lives at the bottom of the screen, where the thumb is ---------- */
-.dock { position: fixed; z-index: 50; left: 0; right: 0; bottom: 0; height: var(--dock); display: flex; align-items: stretch; background: var(--forest); color: var(--ivory); view-transition-name: dock; transition: transform .3s var(--ease); }
+.dock { position: fixed; z-index: 50; left: 0; right: 0; bottom: 0; height: var(--dock-h); padding-bottom: env(safe-area-inset-bottom, 0px); display: flex; align-items: stretch; background: var(--forest); color: var(--ivory); view-transition-name: dock; transition: transform .3s var(--ease); }
 .dock-brand { display: flex; align-items: center; gap: 10px; padding: 0 26px 0 var(--gutter); font: 700 27px/1 var(--ui); text-transform: uppercase; color: inherit; text-decoration: none; }
 .logo-mark { width: 15px; height: 26px; fill: var(--lime); flex: none; }
 .dock-nav { flex: 1; display: flex; align-items: stretch; min-width: 0; list-style: none; margin: 0; padding: 0; }
@@ -107,7 +108,7 @@ table { border-collapse: collapse; }
 .dock-trip b { display: inline-grid; place-items: center; min-width: 28px; height: 28px; padding: 0 6px; background: var(--forest); color: var(--lime); font-size: 18px; }
 html.is-flying .dock { transform: translateY(100%); }
 body.map-open .dock { display: none; }
-.dock-panel { position: fixed; z-index: 49; left: 0; right: 0; bottom: var(--dock); max-height: calc(100vh - var(--dock)); max-height: calc(100svh - var(--dock)); overflow: auto; padding: clamp(24px, 3.4vw, 48px) var(--gutter) clamp(24px, 3vw, 40px); background: var(--sea); color: var(--ivory); transform: translateY(102%); visibility: hidden; transition: transform .32s var(--ease), visibility 0s .32s; }
+.dock-panel { position: fixed; z-index: 49; left: 0; right: 0; bottom: var(--dock-h); max-height: calc(100vh - var(--dock-h)); max-height: calc(100svh - var(--dock-h)); overflow: auto; overscroll-behavior: contain; padding: clamp(24px, 3.4vw, 48px) var(--gutter) clamp(24px, 3vw, 40px); background: var(--sea); color: var(--ivory); transform: translateY(102%); visibility: hidden; transition: transform .32s var(--ease), visibility 0s .32s; }
 .dock-panel.is-open { transform: none; visibility: visible; transition: transform .32s var(--ease); }
 .dock-panel-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 16px; margin-bottom: clamp(14px, 2vw, 24px); }
 .dock-panel-head h2 { margin: 0; font-size: clamp(19px, 1.5vw, 22px); font-weight: 600; color: var(--ivory); }
@@ -471,7 +472,7 @@ dialog.sheet::backdrop { background: rgba(16, 46, 38, .6); }
 .app-head h1 { font-size: clamp(50px, 7vw, 116px); }
 .app-head .lead { max-width: 34em; margin-top: .4em; }
 input, select, textarea { color: var(--ink); }
-.toast { background: var(--forest); bottom: calc(var(--dock) + 16px); }
+.toast { background: var(--forest); bottom: calc(var(--dock-h) + 16px); }
 
 /* ---------- Loader ---------- */
 body.is-loading { overflow: hidden; }
@@ -504,12 +505,13 @@ html:not(.js) img[data-src] { display: none; }
 #mask-loader.is-done .mask-track, #mask-loader.is-done #mask-status { opacity: 0; transition: opacity .2s linear; }
 
 /* ---------- The first screen: the real island standing in front of its own name ---------- */
-.mstage { position: relative; height: 100vh; height: 100svh; min-height: 560px; overflow: hidden; isolation: isolate; background: var(--sea); color: var(--on-sea); }
+.mstage { position: relative; height: 100vh; height: 100lvh; overflow: hidden; isolation: isolate; background: var(--sea); color: var(--on-sea); }
 .mstage.is-open { position: fixed; inset: 0; z-index: 60; height: auto; min-height: 0; color: var(--ink); background: var(--sea-deep); }
 body.map-open { overflow: hidden; }
 #m-island, #m-district, #m-simple { position: absolute; inset: 0; z-index: 1; }
 html.js:not(.no-journey):not(.is-flying) .is-compact #m-island { filter: drop-shadow(0 16px 12px rgba(6, 44, 40, .42)); }
-#m-island { transform-origin: 40% 45%; transition: transform .75s var(--ease), filter .75s var(--ease); will-change: transform; }
+#m-island { transform-origin: 40% 45%; transition: transform .75s var(--ease); will-change: transform; }
+.is-open #m-island { transition: transform .75s var(--ease), filter .75s var(--ease); }
 #m-district { opacity: 0; pointer-events: none; }
 .is-show-district #m-district { opacity: 1; filter: drop-shadow(0 26px 22px rgba(4, 20, 16, .72)); }
 .is-interactive #m-district { pointer-events: auto; }
@@ -521,7 +523,7 @@ html.js:not(.no-journey):not(.is-flying) .is-compact #m-island { filter: drop-sh
 .m-giant span { display: inline-block; }
 .m-sea { font: 600 16px/1.2 var(--ui); color: var(--on-sea-2); white-space: nowrap; pointer-events: none; user-select: none; }
 .is-compact .m-sea { visibility: hidden; }
-.m-intro { position: absolute; z-index: 3; inset: 0; padding: clamp(16px, 2.2vw, 28px) var(--gutter) calc(var(--dock) + clamp(16px, 2.4vw, 30px)); display: flex; flex-direction: column; justify-content: space-between; pointer-events: none; transition: opacity .3s var(--ease), transform .4s var(--ease); }
+.m-intro { position: absolute; z-index: 3; top: 0; left: 0; right: 0; height: 100vh; height: 100svh; padding: clamp(16px, 2.2vw, 28px) var(--gutter) calc(var(--dock-h) + clamp(16px, 2.4vw, 30px)); display: flex; flex-direction: column; justify-content: space-between; pointer-events: none; transition: opacity .3s var(--ease), transform .4s var(--ease); }
 .is-open .m-intro { opacity: 0; transform: translateY(-14px); visibility: hidden; transition: opacity .25s, transform .4s, visibility 0s .25s; }
 .m-names { display: flex; flex-wrap: wrap; gap: 0 1em; margin: 0; font-size: clamp(20px, 1.8vw, 26px); font-weight: 600; line-height: 1.3; }
 .m-foot { display: flex; justify-content: space-between; align-items: flex-end; gap: 24px; }
@@ -572,10 +574,10 @@ input[type="range"] { padding: 0; min-height: 44px; border: 0; background: none;
 
 /* Pinned stage */
 .js:not(.no-journey) .journey { position: relative; }
-.js:not(.no-journey) .mstage:not(.is-open) { position: sticky; top: 0; }
-.js:not(.no-journey) .steps { position: relative; z-index: 4; max-width: none; margin: -100vh 0 0; margin-top: -100svh; padding: 0; background: none; pointer-events: none; }
+.js:not(.no-journey) .mstage:not(.is-open) { position: sticky; top: 0; touch-action: pan-y pinch-zoom; }
+.js:not(.no-journey) .steps { position: relative; z-index: 4; max-width: none; margin: -100vh 0 0; margin-top: -100lvh; padding: 0; background: none; pointer-events: none; }
 .js:not(.no-journey) .step { height: 170vh; padding: 0; }
-.js:not(.no-journey) .step-hero { display: block; height: 100vh; height: 100svh; }
+.js:not(.no-journey) .step-hero { display: block; height: 100vh; height: 100lvh; }
 .js:not(.no-journey) .step-text { height: 150vh; }
 .js:not(.no-journey) .step-end { height: 170vh; }
 .js:not(.no-journey) .step-months { height: 320vh; }
@@ -610,11 +612,11 @@ input[type="range"] { padding: 0; min-height: 44px; border: 0; background: none;
 .j-clouds img { position: absolute; width: 130%; max-width: none; height: auto; opacity: 0; will-change: transform, opacity; }
 #j-cloud-a { left: -30%; top: 2%; }
 #j-cloud-b { right: -34%; top: 34%; }
-.is-open .j-hud, .is-open .j-clouds, .is-open .j-tint, .is-open .j-haze, .is-open .j-sun, .is-open .m-giant { display: none !important; }
+body.map-open .j-hud, .is-open .j-clouds, .is-open .j-tint, .is-open .j-haze, .is-open .j-sun, .is-open .m-giant { display: none !important; }
 body.map-open .steps { display: none; }
 
 /* The instrument strip: real distance, real height. It takes the place of the dock while you drive. */
-.js:not(.no-journey) .j-hud { position: absolute; z-index: 5; left: 0; right: 0; bottom: 0; height: var(--hud); padding: 8px var(--gutter); background: var(--forest); color: var(--on-sea); display: flex; align-items: center; gap: clamp(16px, 3vw, 40px); transform: translateY(100%); transition: transform .35s var(--ease); }
+.js:not(.no-journey) .j-hud { position: fixed; z-index: 5; left: 0; right: 0; bottom: 0; height: calc(var(--hud) + env(safe-area-inset-bottom, 0px)); padding: 8px var(--gutter) calc(8px + env(safe-area-inset-bottom, 0px)); background: var(--forest); color: var(--on-sea); display: flex; align-items: center; gap: clamp(16px, 3vw, 40px); transform: translateY(100%); transition: transform .35s var(--ease); }
 .is-flying .j-hud, .j-hud:focus-within { transform: none !important; }
 /* In flight the map needs no mouse events: each one makes it read a pixel back from the graphics chip. Dragging to look is handled by the stage. */
 .is-flying #m-island, .is-flying #m-district { pointer-events: none; }
@@ -675,7 +677,7 @@ body.map-open .steps { display: none; }
 .area-more .credit { color: var(--on-sea-2); }
 .rail { display: flex; gap: 12px; list-style: none; margin: 18px calc(-1 * var(--sheet-x)) 0; padding: 0 var(--sheet-x) 12px; overflow-x: auto; scroll-snap-type: x proximity; scroll-padding-left: var(--sheet-x); scrollbar-color: var(--forest) transparent; scrollbar-width: thin; }
 .rail li { flex: 0 0 min(250px, 64vw); scroll-snap-align: start; }
-.rail a { display: block; color: inherit; text-decoration: none; }
+.rail li > a { display: block; color: inherit; text-decoration: none; }
 .rail img { width: 100%; aspect-ratio: 4 / 5; object-fit: cover; }
 .rail strong { display: block; margin-top: 8px; font: 700 26px/1.05 var(--ui); text-transform: uppercase; }
 .rail a:hover strong { color: var(--sea); }
@@ -811,7 +813,6 @@ body.map-open .steps { display: none; }
 }
 @media (max-width: 1000px) {
   :root { --dock: 62px; --hud: 66px; }
-  .dock { padding-bottom: env(safe-area-inset-bottom); height: calc(var(--dock) + env(safe-area-inset-bottom)); }
   .dock-brand { display: none; }
   .dock-nav { flex: 4; }
   .dock-nav > li { flex: 1; min-width: 0; }
@@ -820,11 +821,15 @@ body.map-open .steps { display: none; }
   .dock-link svg, .dock-trip svg { display: block; width: 22px; height: 22px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linejoin: round; stroke-linecap: round; }
   .dock-trip { position: relative; flex: 1; flex-direction: column; justify-content: center; gap: 3px; padding: 5px 2px; font-size: 15px; font-weight: 600; }
   .dock-trip b { position: absolute; top: 5px; left: calc(50% + 7px); min-width: 20px; height: 20px; padding: 0 4px; font-size: 13px; }
-  .dock-panel { top: 0; max-height: none; bottom: calc(var(--dock) + env(safe-area-inset-bottom)); }
+  .dock-panel { top: 0; max-height: none; }
+  .j-stop { display: none; }
+  html.has-panel body { overflow: hidden; }
   .dock-panel ul { columns: 1; }
   .dock-panel li a { font-size: clamp(30px, 8.6vw, 46px); padding: .12em 0; }
   .ss { display: block; }
-  .scene { position: sticky; top: 0; z-index: 0; height: 60vh; height: 60svh; min-height: 340px; padding-bottom: 22px; }
+  .scene { position: sticky; top: 0; z-index: 0; height: 60vh; height: 60svh; min-height: 340px; padding-bottom: 12px; }
+  .scene-note { position: static; order: 9; margin: 2px 0 0; text-align: left; font-size: 13px; }
+  .scene:has(.scene-inset) .crumbs { right: calc(var(--gutter) + clamp(78px, 7.6vw, 112px) + 10px); }
   .sheet { position: relative; z-index: 1; padding-top: 26px; }
   .sheet > * { max-width: none; }
   h1 { font-size: clamp(50px, 14vw, 104px); }
@@ -859,19 +864,18 @@ body.map-open .steps { display: none; }
   .trip-facts { grid-template-columns: 1fr 1fr; }
   .pday { grid-template-columns: minmax(0, 1fr); gap: 4px; }
   .planner { padding-bottom: 92px; }
-  .mobile-total { display: flex; position: fixed; left: 0; right: 0; bottom: calc(var(--dock) + env(safe-area-inset-bottom)); z-index: 45; align-items: center; gap: 8px; padding: 8px 10px 8px 16px; background: var(--paper); color: var(--ink); border-top: 2px solid var(--ink); }
+  .mobile-total { display: flex; position: fixed; left: 0; right: 0; bottom: var(--dock-h); z-index: 45; align-items: center; gap: 8px; padding: 8px 10px 8px 16px; background: var(--paper); color: var(--ink); border-top: 2px solid var(--ink); }
   .mobile-total .mt-amt { font: 700 28px/1 var(--ui); }
   .mobile-total .mt-sub { font-size: 15px; color: var(--ink-3); display: block; }
   .mobile-total .mt-sub.over { color: var(--bad); }
   .mobile-total > div { flex: 1; min-width: 0; }
   .toast { bottom: 150px; }
   /* First screen */
-  .m-giant { top: 6.5vh; font-size: min(33vw, 21vh); white-space: normal; }
+  .m-giant { top: 6.5vh; top: 6.5svh; font-size: min(33vw, 21vh); font-size: min(33vw, 21svh); white-space: normal; }
   .m-giant span { display: block; }
   .m-foot { display: block; }
   .m-intro h1 { font-size: clamp(27px, 7.6vw, 34px); max-width: none; }
-  .m-scroll { font-size: 18px; }
-  .m-scroll > span { display: none; }
+  .m-scroll { display: none; }
   .m-names { font-size: 18px; }
   .m-intro .hero-actions { justify-content: flex-start; flex-wrap: nowrap; margin-top: 8px; gap: 8px; }
   .m-intro .button-lg { min-height: 50px; padding: 10px 14px; font-size: 19px; white-space: nowrap; }
@@ -884,9 +888,11 @@ body.map-open .steps { display: none; }
   /* The drive */
   .step-copy, .step-photo { grid-column: 1 / -1; }
   .step-photo { margin-top: 14px; }
-  .js:not(.no-journey) .step { height: 170vh; }
-  .js:not(.no-journey) .step-text { height: 150vh; }
-  .js:not(.no-journey) .step-months { height: 360vh; }
+  /* One swipe covers less road than on a desktop, so a phone has time to bring in the land ahead */
+  .js:not(.no-journey) .step { height: 240vh; }
+  .js:not(.no-journey) .step-text { height: 200vh; }
+  .js:not(.no-journey) .step-end { height: 210vh; }
+  .js:not(.no-journey) .step-months { height: 460vh; }
   .js:not(.no-journey) .step-in { grid-template-columns: minmax(0, 1fr); padding-bottom: calc(var(--hud) + 14px); }
   .js:not(.no-journey) .step-name { font-size: clamp(60px, 19.5vw, 120px); }
   .js:not(.no-journey) .step-text .step-name { font-size: clamp(50px, 15vw, 90px); }
@@ -903,7 +909,8 @@ body.map-open .steps { display: none; }
   .j-read div:last-child { display: none; }
   .j-line { height: 30px; margin-bottom: 0; }
   .j-stop { display: none; }
-  .js:not(.no-journey) .j-hud { gap: 12px; padding: 6px 16px; }
+  .js:not(.no-journey) .j-hud { gap: 12px; padding: 6px 16px calc(6px + env(safe-area-inset-bottom, 0px)); }
+  .j-hud .j-sound { justify-content: center; min-width: 40px; gap: 0; font-size: 0; }
   .js:not(.no-journey) .step-months .small { display: none; }
   .js:not(.no-journey) .step-months .step-copy .step-title { font-size: 28px; }
   .step-month { font-size: 60px; }
@@ -917,17 +924,56 @@ body.map-open .steps { display: none; }
   /* Map controls */
   .m-top { top: 10px; left: 10px; right: 10px; }
   .m-btn, .m-mode button { padding: 6px 12px; font-size: 16px; }
-  .m-sheet { top: auto; left: 0; right: 0; bottom: 56px; width: auto; transition: height .3s var(--ease); height: 50vh; }
+  .m-sheet { top: auto; left: 0; right: 0; bottom: calc(56px + env(safe-area-inset-bottom, 0px)); width: auto; transition: height .3s var(--ease); height: 50vh; height: 50svh; }
   .m-sheet[data-h="peek"] { height: 96px; }
-  .m-sheet[data-h="full"] { height: calc(92vh - 56px); }
+  .m-sheet[data-h="full"] { height: calc(92vh - 56px); height: calc(92svh - 56px - env(safe-area-inset-bottom, 0px)); }
   .m-grab { display: grid; place-items: center; min-height: 28px; border: 0; background: none; cursor: grab; touch-action: none; flex: none; }
   .m-grab i { width: 40px; height: 3px; background: var(--rule); }
   .m-body { padding: 4px 16px 18px; }
   .m-body h2 { font-size: 34px; }
-  .m-bar { left: 0; right: 0; bottom: 0; height: 56px; gap: 4px; padding: 6px 8px calc(6px + env(safe-area-inset-bottom)); flex-wrap: nowrap; background: var(--paper); border-top: 1px solid var(--rule); }
+  .m-bar { left: 0; right: 0; bottom: 0; height: calc(56px + env(safe-area-inset-bottom, 0px)); gap: 4px; padding: 6px 8px calc(6px + env(safe-area-inset-bottom)); flex-wrap: nowrap; background: var(--paper); border-top: 1px solid var(--rule); }
   .m-bar .m-btn { flex: 1; padding: 4px; min-height: 44px; font-size: 15px; }
   .m-credit { display: none; }
   .m-toast { top: 64px; }
+}
+/* A phone on its side: very little height, so the island stands beside the words as on a desktop */
+@media (max-height: 480px) and (min-width: 561px) {
+  :root { --dock: 54px; --hud: 54px; }
+  .dock-link, .dock-trip { padding-top: 3px; padding-bottom: 3px; gap: 1px; font-size: 14px; }
+  .ss { display: grid; grid-template-columns: minmax(0, 42fr) minmax(0, 58fr); }
+  .scene { height: calc(100vh - var(--dock-h)); height: calc(100svh - var(--dock-h)); min-height: 0; padding: 12px 16px; }
+  .scene-inset { display: none; }
+  .scene h1, .scene h1.t-mid, .scene h1.t-long, .h1-big, .h1-big.t-long { font-size: min(44px, 5.4vw, calc(66vw / var(--w, 8))); }
+  .h1-sub { font-size: 18px; margin-top: 6px; }
+  .names { font-size: 16px; }
+  .m-names { display: none; }
+  .m-giant { top: 4vh; top: 4svh; font-size: min(17vw, 46vh); font-size: min(17vw, 46svh); white-space: nowrap; }
+  .m-giant span { display: inline-block; }
+  .m-foot { display: flex; }
+  .m-intro { padding: 10px 16px calc(var(--dock-h) + 10px); justify-content: flex-end; }
+  .m-intro h1 { margin: 0; font-size: 22px; }
+  .m-intro h1 span { display: inline; }
+  .m-scroll { display: none; }
+  .m-intro .hero-actions { flex-wrap: nowrap; justify-content: flex-end; margin: 0; gap: 8px; }
+  .m-intro .button-lg { min-height: 44px; padding: 8px 12px; font-size: 17px; white-space: nowrap; }
+  .js:not(.no-journey) .step-in { padding: 10px 16px calc(var(--hud) + 8px); }
+  .js:not(.no-journey) .step-name, .js:not(.no-journey) .step-name.t-long { font-size: min(68px, 19vh); font-size: min(68px, 19svh); }
+  .js:not(.no-journey) .step-text .step-name { font-size: min(52px, 15vh); font-size: min(52px, 15svh); }
+  .js:not(.no-journey) .step-sub { font-size: 16px; }
+  .js:not(.no-journey) .step-photo { display: none; }
+  .js:not(.no-journey) .step-copy { grid-column: 1 / span 9; }
+  .js:not(.no-journey) .step-copy .step-title, .js:not(.no-journey) .step-end .step-copy .step-title { margin-bottom: 2px; font-size: 22px; line-height: 1.05; text-transform: none; }
+  .js:not(.no-journey) .step-copy p { margin: 0 0 4px; font-size: 15px; line-height: 1.3; }
+  .js:not(.no-journey) .step-end .step-copy, .js:not(.no-journey) .step-months .step-copy { grid-column: 6 / -1; }
+  .js:not(.no-journey) .step-months .small { display: none; }
+  .js:not(.no-journey) .step-months .step-copy .step-title { font-size: 20px; }
+  .step-range { margin: 2px 0; }
+  .step-key { margin-bottom: 0; font-size: 14px; }
+  .js:not(.no-journey) .atlas-sheet { margin-top: 0; margin-left: 44vw; }
+  .j-read dd { font-size: 20px; }
+  .j-read dt { font-size: 13px; }
+  .j-line { height: 26px; margin-bottom: 0; }
+  .j-stop { display: none; }
 }
 @media (prefers-reduced-motion: reduce) {
   #mask-loader.is-done { opacity: 0; -webkit-mask-image: none; mask-image: none; transition: opacity .2s; }
@@ -936,7 +982,7 @@ body.map-open .steps { display: none; }
 
 /* ---------- Page to page ---------- */
 /* Pictures fly between pages where the browser can do it, and the dock stays still. Everywhere else the page simply changes. */
-@view-transition { navigation: auto; }
+@media (min-width: 1001px) { @view-transition { navigation: auto; } }
 ::view-transition-group(*) { animation-duration: .42s; animation-timing-function: var(--ease); }
 .read-line { position: fixed; z-index: 51; left: 0; right: 0; top: 0; height: 4px; background: var(--gold); transform: scaleX(0); transform-origin: 0 50%; display: none; }
 @supports (animation-timeline: scroll()) {
