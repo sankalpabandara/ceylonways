@@ -302,7 +302,7 @@
     pace.t += gap;
     if (++pace.n < 60) return;
     const ms = pace.t / pace.n, floor = Math.max(.75, pace.base * .6); pace.n = pace.t = 0;
-    if (ms > 36 && pace.now > floor) { pace.now = Math.max(floor, pace.now * .8); map.setPixelRatio(pace.now); }
+    if (ms > 36 && pace.now > floor) { pace.now = Math.max(floor, pace.now * .8); map.setPixelRatio(pace.now); map.triggerRepaint(); }
   }
 
   // A short phone needs the island small above the words. Below this zoom the imagery has no tiles.
@@ -404,9 +404,10 @@
     }).catch(() => {});
     // The address bar fires resize too. Only a real change of layout may move the camera path, and the map must be drawn again after one.
     const redo = () => { if (paused) return; measure(); settled = false; render(Math.min(y, end), performance.now(), true); };
-    let seenW = innerWidth, seenH = vh;
+    let seenW = innerWidth, seenH = vh, boxW = A.stage.clientWidth, boxH = A.stage.clientHeight;
     addEventListener('resize', () => { const h = A.seeH(); if (innerWidth === seenW && h === seenH) return; seenW = innerWidth; seenH = h; if (!paused) map.resize(); });
-    map.on('resize', redo);
+    // A change of sharpness also counts as a resize for the map, and it comes when the phone is already short of time.
+    map.on('resize', () => { const w = A.stage.clientWidth, h = A.stage.clientHeight; if (w === boxW && h === boxH) return; boxW = w; boxH = h; redo(); });
     addEventListener('pointermove', e => { if (e.pointerType === 'mouse') { px = e.clientX / innerWidth * 2 - 1; py = e.clientY / innerHeight * 2 - 1; } }, { passive: true });
     // Drag to look around. Sideways only on touch, so the page still scrolls under the thumb.
     A.stage.addEventListener('pointerdown', e => { if (e.target.closest('a,button,input') || scrollY < vh * .2 || A.isOpen()) return; look.drag = { x: e.clientX, y: e.clientY, b: look.b, p: look.p, touch: e.pointerType !== 'mouse' }; wrap.classList.add('is-looking'); });
